@@ -3,11 +3,13 @@
 
 #include <asm/types.h>
 
-#define VCAM_IOCTL_CREATE_DEVICE 0x111
-#define VCAM_IOCTL_DESTROY_DEVICE 0x222
-#define VCAM_IOCTL_GET_DEVICE 0x333
-#define VCAM_IOCTL_ENUM_DEVICES 0x444
-#define VCAM_IOCTL_MODIFY_SETTING 0x555
+#define VCAM_IOC_MAGIC  'v'
+
+#define VCAM_IOCTL_CREATE_DEVICE  _IOW(VCAM_IOC_MAGIC, 0x01, struct vcam_device_spec)
+#define VCAM_IOCTL_DESTROY_DEVICE _IOW(VCAM_IOC_MAGIC, 0x02, struct vcam_device_spec)
+#define VCAM_IOCTL_GET_DEVICE     _IOR(VCAM_IOC_MAGIC, 0x03, struct vcam_device_spec)
+#define VCAM_IOCTL_ENUM_DEVICES   _IOR(VCAM_IOC_MAGIC, 0x04, struct vcam_device_spec)
+#define VCAM_IOCTL_MODIFY_SETTING _IOW(VCAM_IOC_MAGIC, 0x05, struct vcam_device_spec)
 
 typedef enum { VCAM_PIXFMT_RGB24 = 0x01, VCAM_PIXFMT_YUYV = 0x02 } pixfmt_t;
 

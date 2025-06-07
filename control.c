@@ -68,9 +68,9 @@ static int control_iocontrol_get_device(struct vcam_device_spec *dev_spec)
         return -EINVAL;
 
     dev = ctldev->vcam_devices[dev_spec->idx];
-    dev_spec->width = dev->fb_spec.xres_virtual;
-    dev_spec->height = dev->fb_spec.yres_virtual;
-    dev_spec->pix_fmt = dev->fb_spec.pix_fmt;
+    dev_spec->width = dev->output_format.width;
+    dev_spec->height = dev->output_format.height;
+    dev_spec->pix_fmt = (dev->output_format.pixelformat == V4L2_PIX_FMT_RGB24) ? VCAM_PIXFMT_RGB24 : VCAM_PIXFMT_YUYV;
     dev_spec->cropratio = dev->fb_spec.cropratio;
 
     snprintf((char *) &dev_spec->video_node, sizeof(dev_spec->video_node),
@@ -107,6 +107,48 @@ static int control_iocontrol_destroy_device(struct vcam_device_spec *dev_spec)
     return 0;
 }
 
+static struct vcam_device *find_vcam_device(unsigned int idx)
+{
+    if (idx >= devices_max || idx >= ctldev->vcam_device_count) {
+        pr_err("Device index %d out of range (max %d)\n", idx, devices_max - 1);
+        return NULL;
+    }
+    return ctldev->vcam_devices[idx];
+}
+
+static int control_iocontrol_modify_device(struct vcam_device_spec *dev_spec)
+{
+    struct vcam_device *vcam;
+    unsigned long flags = 0;
+
+    vcam = find_vcam_device(dev_spec->idx);
+    if (!vcam) {
+        pr_err("Device with index %d not found\n", dev_spec->idx);
+        return -ENODEV;
+    }
+
+    spin_lock_irqsave(&ctldev->vcam_devices_lock, flags);
+
+    if (dev_spec->width && dev_spec->height) {
+        vcam->output_format.width = dev_spec->width;
+        vcam->output_format.height = dev_spec->height;
+        vcam->output_format.bytesperline = vcam->output_format.width * (vcam->output_format.pixelformat == V4L2_PIX_FMT_YUYV ? 2 : 3);
+        vcam->output_format.sizeimage = vcam->output_format.bytesperline * vcam->output_format.height;
+        pr_debug("Modified resolution to %dx%d, bytesperline=%d, sizeimage=%d\n",
+                 vcam->output_format.width, vcam->output_format.height,
+                 vcam->output_format.bytesperline, vcam->output_format.sizeimage);
+    } else {
+        pr_debug("No resolution change requested\n");
+    }
+
+    if (dev_spec->pix_fmt) {
+        vcam->output_format.pixelformat = (dev_spec->pix_fmt == VCAM_PIXFMT_RGB24) ? V4L2_PIX_FMT_RGB24 : V4L2_PIX_FMT_YUYV;
+    }
+
+    spin_unlock_irqrestore(&ctldev->vcam_devices_lock, flags);
+    return 0;
+}
+
 static long control_ioctl(struct file *file,
                           unsigned int iocontrol_cmd,
                           unsigned long iocontrol_param)
@@ -137,6 +179,10 @@ static long control_ioctl(struct file *file,
                 ret = -1;
             }
         }
+        break;
+    case VCAM_IOCTL_MODIFY_SETTING:
+        pr_debug("Requesting modification of device settings\n");
+        ret = control_iocontrol_modify_device(&dev_spec);
         break;
     default:
         ret = -EINVAL;
