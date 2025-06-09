@@ -20,17 +20,18 @@ struct crop_ratio {
 
 struct vcam_device_spec {
     unsigned int idx;
-
-    /* virtual resolution */
-    __u32 xres_virtual, yres_virtual;
-    /* resolution */
     __u32 width, height;
-
     struct crop_ratio cropratio;
-
     pixfmt_t pix_fmt;
     char video_node[64];
     char fb_node[64];
+    int fps;
+    int exposure;
+    int gain;
+    int bits_per_pixel;
+    char frames_dir[256];
+    int frame_count;
+    char *color_scheme;
 };
 
 #endif

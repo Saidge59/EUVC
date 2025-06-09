@@ -395,8 +395,8 @@ int vcamfb_init(struct vcam_device *dev)
     vfb_default.xres = dev->fb_spec.width;
     vfb_default.yres = dev->fb_spec.height;
     vfb_default.bits_per_pixel = 24;
-    vfb_default.xres_virtual = dev->fb_spec.xres_virtual;
-    vfb_default.yres_virtual = dev->fb_spec.yres_virtual;
+    vfb_default.xres_virtual = dev->fb_spec.width;
+    vfb_default.yres_virtual = dev->fb_spec.height;
     vcam_fb_check_var(&vfb_default, info);
 
     /* set the fb_info */
@@ -487,8 +487,8 @@ void vcamfb_update(struct vcam_device *dev)
         /* reset the fb_var */
         info->var.xres = dev->fb_spec.width;
         info->var.yres = dev->fb_spec.height;
-        info->var.xres_virtual = dev->fb_spec.xres_virtual;
-        info->var.yres_virtual = dev->fb_spec.yres_virtual;
+        info->var.xres_virtual = dev->fb_spec.width;
+        info->var.yres_virtual = dev->fb_spec.height;
         info->var.xoffset = (info->var.xres_virtual - info->var.xres) >> 1;
         info->var.yoffset = (info->var.yres_virtual - info->var.yres) >> 1;
     }

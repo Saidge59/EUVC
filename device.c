@@ -493,8 +493,8 @@ struct vcam_device *create_vcam_device(size_t idx,
     dev_spec->width = 640;
     dev_spec->height = 480;
     dev_spec->pix_fmt = VCAM_PIXFMT_RGB24;
-    dev_spec->xres_virtual = dev_spec->width;
-    dev_spec->yres_virtual = dev_spec->height;
+    dev_spec->width = dev_spec->width;
+    dev_spec->height = dev_spec->height;
     dev_spec->cropratio.numerator = 1;
     dev_spec->cropratio.denominator = 1;
 
