@@ -1,5 +1,5 @@
-#ifndef VCAM_DEVICE_H
-#define VCAM_DEVICE_H
+#ifndef UVC_DEVICE_H
+#define UVC_DEVICE_H
 
 #include <linux/version.h>
 #include <media/v4l2-common.h>
@@ -9,7 +9,7 @@
 #include <media/videobuf2-core.h>
 #include <media/videobuf2-v4l2.h>
 
-#include "vcam.h"
+#include "uvc.h"
 
 #define PIXFMTS_MAX 4
 #define FB_NAME_MAXLENGTH 16
@@ -20,60 +20,63 @@
 #define HD_720_HEIGHT 720
 #endif
 
-struct vcam_in_buffer {
+struct uvc_in_buffer {
     void *data;
     size_t filled;
     size_t xbar, ybar;
     uint32_t jiffies;
 };
 
-struct vcam_in_queue {
-    struct vcam_in_buffer buffers[2];
-    struct vcam_in_buffer dummy;
-    struct vcam_in_buffer *pending;
-    struct vcam_in_buffer *ready;
+struct uvc_in_queue {
+    struct uvc_in_buffer buffers[2];
+    struct uvc_in_buffer dummy;
+    struct uvc_in_buffer *pending;
+    struct uvc_in_buffer *ready;
 };
 
-struct vcam_out_buffer {
+struct uvc_out_buffer {
     struct vb2_v4l2_buffer vb;
     struct list_head list;
     size_t filled;
 };
 
-struct vcam_out_queue {
+struct uvc_out_queue {
     struct list_head active;
     int frame;
     /* TODO: implement more */
 };
 
-struct vcam_device_format {
+struct uvc_device_format {
     char *name;
     int fourcc;
     int bit_depth;
 };
 
-struct vcam_device {
+struct uvc_device {
     dev_t dev_number;
     struct v4l2_device v4l2_dev;
     struct video_device vdev;
 
     /* input buffer */
-    struct vcam_in_queue in_queue;
+    struct uvc_in_queue in_queue;
     spinlock_t in_q_slock;
     spinlock_t in_fh_slock;
     bool fb_isopen;
 
     /* output buffer */
     struct vb2_queue vb_out_vidq;
-    struct vcam_out_queue vcam_out_vidq;
+    struct uvc_out_queue uvc_out_vidq;
     spinlock_t out_q_slock;
     /* Output framerate */
     struct v4l2_fract output_fps;
 
+    char frames_dir[256];
+    int frame_count;
+
     /* Input framebuffer */
-    char vcam_fb_fname[FB_NAME_MAXLENGTH];
-    struct proc_dir_entry *vcam_fb_procf;
-    struct mutex vcam_mutex;
+    char uvc_fb_fname[FB_NAME_MAXLENGTH];
+    struct proc_dir_entry *uvc_fb_procf;
+    struct mutex uvc_mutex;
 
     /* framebuffer private data */
     void *fb_priv;
@@ -83,9 +86,9 @@ struct vcam_device {
 
     /* Format descriptor */
     size_t nr_fmts;
-    struct vcam_device_format out_fmts[PIXFMTS_MAX];
+    struct uvc_device_format out_fmts[PIXFMTS_MAX];
 
-    struct vcam_device_spec fb_spec;
+    struct uvc_device_spec fb_spec;
     struct v4l2_pix_format output_format;
     struct v4l2_pix_format input_format;
 
@@ -95,12 +98,14 @@ struct vcam_device {
     bool conv_crop_on;
 };
 
-struct vcam_device *create_vcam_device(size_t idx,
-                                       struct vcam_device_spec *dev_spec);
-int modify_vcam_device(struct vcam_device *vcam,
-                       struct vcam_device_spec *dev_spec);
-void destroy_vcam_device(struct vcam_device *vcam);
+struct uvc_device *create_uvc_device(size_t idx, struct uvc_device_spec *dev_spec);
+
+int modify_uvc_device(struct uvc_device *uvc, struct uvc_device_spec *dev_spec);
+
+void destroy_uvc_device(struct uvc_device *uvc);
 
 int submitter_thread(void *data);
+
+void fill_v4l2pixfmt(struct v4l2_pix_format *fmt, struct uvc_device_spec *dev_spec);
 
 #endif

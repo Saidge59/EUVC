@@ -9,17 +9,15 @@
 #include <unistd.h>
 #include <dirent.h>
 
-#include "vcam.h"
+#include "uvc.h"
 
-static const char *short_options = "hcm:r:ls:p:d:f:e:g:R:cs:b:fd:";
+static const char *short_options = "hcm:r:l:d:f:e:g:R:cs:b:fd:";
 
 const struct option long_options[] = {
     {"help", 0, NULL, 'h'},
     {"create", 0, NULL, 'c'},
     {"modify", 1, NULL, 'm'},
     {"list", 0, NULL, 'l'},
-    {"size", 1, NULL, 's'},
-    {"pixfmt", 1, NULL, 'p'},
     {"device", 1, NULL, 'd'},
     {"remove", 1, NULL, 'r'},
     {"fps", 1, NULL, 'f'},
@@ -27,32 +25,37 @@ const struct option long_options[] = {
     {"gain", 1, NULL, 'g'},
     {"resolution", 1, NULL, 'R'},
     {"color-scheme", 1, NULL, 0x100},
-    {"bbp", 1, NULL, 'b'},
+    {"bpp", 1, NULL, 'b'},
     {"frames-dir", 1, NULL, 0x101},
     {NULL, 0, NULL, 0}
 };
 
 const char *help =
-    " -h --help                            Print this informations.\n"
-    " -c --create                          Create a new emulated UVC device.\n"
-    " -m --modify  idx                     Modify an existing device.\n"
-    " -r --remove  idx                     Remove a device.\n"
-    " -l --list                            List devices.\n"
-    " -s --size    WIDTHxHEIGHTxCROPRATIO  Specify virtual resolution or crop ratio.\n"
-    " -R --resolution WIDTHxHEIGHT         Specify resolution.\n"
-    " -p --pixfmt  pix_fmt                 Specify pixel format (rgb24,yuyv).\n"
-    " -f --fps     FPS                     Set frames per second.\n"
-    " -e --exposure VALUE                  Set exposure value.\n"
-    " -g --gain    VALUE                   Set gain value.\n"
-    " --color-scheme SCHEME                Set color scheme (e.g., RGB, YUV).\n"
-    " -b --bbp     BITS                    Set bits per pixel.\n"
-    " --frames-dir PATH                    Load frames from directory.\n"
-    " -d --device  /dev/*                  Control device node (default: /dev/vcamctl).\n";
+    "\n"
+    "**********************************************************************\n"
+    "**                     UVC Device Management Help                   **\n"
+    "**********************************************************************\n"
+    "\n"
+    "  -h, --help                        Display this help message         \n"
+    "  -c, --create                      Create new emulated UVC device    \n"
+    "  -m, --modify <idx>                Modify existing device            \n"
+    "  -R, --remove <idx>                Remove a device                   \n"
+    "  -l, --list                        List all devices                  \n"
+    "  -r, --resolution <width>x<height> Set resolution (e.g. 640x480)     \n"
+    "  -f, --fps <fps>                   Set frames per second             \n"
+    "  -e, --exposure <val>              Set exposure (-100..100)          \n"
+    "  -g, --gain <val>                  Set gain (-50..150)               \n"
+    "  --color-scheme <scheme>           Set color scheme (RGB, YUV)       \n"
+    "  -b, --bpp <bits>                  Set bits per pixel                \n"
+    "  --frames-dir <path>               Load frames from directory        \n"
+    "  -d, --device /dev/*               Device node (default: /dev/uvcctl)\n\n";
 
-struct vcam_device_spec device_template = {
+enum ACTION { ACTION_NONE, ACTION_CREATE, ACTION_DESTROY, ACTION_MODIFY };
+
+struct uvc_device_spec device_template = {
     .width = 640,
     .height = 480,
-    .pix_fmt = VCAM_PIXFMT_RGB24,
+    .color_scheme = UVC_COLOR_RGB,
     .video_node = "",
     .fb_node = "",
     .fps = 30,
@@ -61,9 +64,9 @@ struct vcam_device_spec device_template = {
     .bits_per_pixel = 24
 };
 
-static char ctl_path[128] = "/dev/vcamctl";
+static char ctl_path[128] = "/dev/uvcctl";
 
-static bool parse_cropratio(char *res_str, struct vcam_device_spec *dev)
+static bool parse_cropratio(char *res_str, struct uvc_device_spec *dev)
 {
     struct crop_ratio cropratio;
     char *tmp = strtok(res_str, "/:,");
@@ -82,7 +85,7 @@ static bool parse_cropratio(char *res_str, struct vcam_device_spec *dev)
     return true;
 }
 
-bool parse_resolution(char *res_str, struct vcam_device_spec *dev)
+bool parse_resolution(char *res_str, struct uvc_device_spec *dev)
 {
     char *tmp = strtok(res_str, "x:,");
     if (!tmp)
@@ -100,52 +103,38 @@ bool parse_resolution(char *res_str, struct vcam_device_spec *dev)
     return true;
 }
 
-int determine_pixfmt(char *pixfmt_str)
-{
-    if (!strncmp(pixfmt_str, "rgb24", 5))
-        return VCAM_PIXFMT_RGB24;
-    if (!strncmp(pixfmt_str, "yuyv", 4))
-        return VCAM_PIXFMT_YUYV;
-    return -1;
-}
-
-static int load_frames_from_dir(const char *dir_path, struct vcam_device_spec *dev)
+int load_frames_from_dir(const char *dir_path, struct uvc_device_spec *dev_spec)
 {
     DIR *dir;
     struct dirent *entry;
-    int frame_count = 0;
-    struct stat st;
-    char full_path[512];
+    int count = 0;
 
     if (!(dir = opendir(dir_path))) {
-        fprintf(stderr, "Failed to open directory %s\n", dir_path);
+        perror("Failed to open directory");
         return -1;
     }
 
     while ((entry = readdir(dir)) != NULL) {
-        if (snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, entry->d_name) >= sizeof(full_path)) {
-            fprintf(stderr, "Path too long: %s/%s\n", dir_path, entry->d_name);
-            continue;
-        }
-
-        if (stat(full_path, &st) == 0 && S_ISREG(st.st_mode)) {
-            frame_count++;
-            printf("Found frame: %s\n", entry->d_name);
+        if (strstr(entry->d_name, "output_") == entry->d_name) {
+            count++;
         }
     }
     closedir(dir);
 
-    if (frame_count == 0) {
-        fprintf(stderr, "No frames found in %s\n", dir_path);
+    if (count == 0) {
+        fprintf(stderr, "No output_*.raw files found in %s\n", dir_path);
         return -1;
     }
 
-    strncpy(dev->frames_dir, dir_path, sizeof(dev->frames_dir) - 1);
-    dev->frame_count = frame_count;
+    dev_spec->frame_count = count;
+    strncpy(dev_spec->frames_dir, dir_path, sizeof(dev_spec->frames_dir) - 1);
+    dev_spec->frames_dir[sizeof(dev_spec->frames_dir) - 1] = '\0';
+
+    printf("Loaded %d frames from %s\n", count, dir_path);
     return 0;
 }
 
-int create_device(struct vcam_device_spec *dev)
+int create_device(struct uvc_device_spec *dev)
 {
     int fd = open(ctl_path, O_RDWR);
     if (fd == -1) {
@@ -158,8 +147,8 @@ int create_device(struct vcam_device_spec *dev)
         dev->height = device_template.height;
     }
 
-    if (!dev->pix_fmt)
-        dev->pix_fmt = device_template.pix_fmt;
+    if (!dev->color_scheme)
+        dev->color_scheme = device_template.color_scheme;
 
     if (!dev->fps)
         dev->fps = device_template.fps;
@@ -170,7 +159,7 @@ int create_device(struct vcam_device_spec *dev)
     if (!dev->bits_per_pixel)
         dev->bits_per_pixel = device_template.bits_per_pixel;
 
-    int res = ioctl(fd, VCAM_IOCTL_CREATE_DEVICE, dev);
+    int res = ioctl(fd, UVC_IOCTL_CREATE_DEVICE, dev);
     if (res) {
         fprintf(stderr, "Failed to create a new device.\n");
     } else if (dev->frames_dir[0]) {
@@ -181,7 +170,7 @@ int create_device(struct vcam_device_spec *dev)
     return res;
 }
 
-int remove_device(struct vcam_device_spec *dev)
+int remove_device(struct uvc_device_spec *dev)
 {
     int fd = open(ctl_path, O_RDWR);
     if (fd == -1) {
@@ -189,7 +178,7 @@ int remove_device(struct vcam_device_spec *dev)
         return -1;
     }
 
-    int res = ioctl(fd, VCAM_IOCTL_DESTROY_DEVICE, dev);
+    int res = ioctl(fd, UVC_IOCTL_DESTROY_DEVICE, dev);
     if (res) {
         fprintf(stderr, "Failed to remove the device on index %d.\n",
                 dev->idx + 1);
@@ -199,9 +188,9 @@ int remove_device(struct vcam_device_spec *dev)
     return res;
 }
 
-int modify_device(struct vcam_device_spec *dev)
+int modify_device(struct uvc_device_spec *dev)
 {
-    struct vcam_device_spec orig_dev = {.idx = dev->idx};
+    struct uvc_device_spec orig_dev = {.idx = dev->idx};
 
     int fd = open(ctl_path, O_RDWR);
     if (fd == -1) {
@@ -209,7 +198,7 @@ int modify_device(struct vcam_device_spec *dev)
         return -1;
     }
 
-    if (ioctl(fd, VCAM_IOCTL_GET_DEVICE, &orig_dev)) {
+    if (ioctl(fd, UVC_IOCTL_GET_DEVICE, &orig_dev)) {
         fprintf(stderr, "Failed to find device on index %d.\n",
                 orig_dev.idx + 1);
         close(fd);
@@ -221,8 +210,8 @@ int modify_device(struct vcam_device_spec *dev)
         dev->height = orig_dev.height;
     }
 
-    if (!dev->pix_fmt)
-        dev->pix_fmt = orig_dev.pix_fmt;
+    if (!dev->color_scheme)
+        dev->color_scheme = orig_dev.color_scheme;
 
     if (!dev->fps)
         dev->fps = orig_dev.fps;
@@ -235,7 +224,7 @@ int modify_device(struct vcam_device_spec *dev)
     if (!dev->cropratio.numerator || !dev->cropratio.denominator)
         dev->cropratio = orig_dev.cropratio;
 
-    int res = ioctl(fd, VCAM_IOCTL_MODIFY_SETTING, dev);
+    int res = ioctl(fd, UVC_IOCTL_MODIFY_SETTING, dev);
     if (res) {
         fprintf(stderr, "Failed to modify the device.\n");
     } else if (dev->frames_dir[0]) {
@@ -248,7 +237,7 @@ int modify_device(struct vcam_device_spec *dev)
 
 int list_devices()
 {
-    struct vcam_device_spec dev = {.idx = 0};
+    struct uvc_device_spec dev = {.idx = 0};
 
     int fd = open(ctl_path, O_RDWR);
     if (fd == -1) {
@@ -257,12 +246,11 @@ int list_devices()
     }
 
     printf("Available virtual UVC compatible devices:\n");
-    while (!ioctl(fd, VCAM_IOCTL_GET_DEVICE, &dev)) {
+    while (!ioctl(fd, UVC_IOCTL_GET_DEVICE, &dev)) {
         dev.idx++;
-        printf("%d. %s(%d,%d,%d/%d,%s,fps=%d,exp=%d,gain=%d,bbp=%d) -> %s\n",
+        printf("%d. %s(%d,%d,%s,fps=%d,exp=%d,gain=%d,bbp=%d) -> %s\n",
                dev.idx, dev.fb_node, dev.width, dev.height,
-               dev.cropratio.numerator, dev.cropratio.denominator,
-               dev.pix_fmt == VCAM_PIXFMT_RGB24 ? "rgb24" : "yuyv",
+               dev.color_scheme == UVC_COLOR_RGB ? "rgb24" : "yuyv",
                dev.fps, dev.exposure, dev.gain, dev.bits_per_pixel,
                dev.video_node);
     }
@@ -273,11 +261,11 @@ int list_devices()
 int main(int argc, char *argv[])
 {
     int next_option;
-    struct vcam_device_spec dev;
+    enum ACTION current_action = ACTION_NONE;
+    struct uvc_device_spec dev;
     int ret = 0;
-    int tmp;
 
-    memset(&dev, 0x00, sizeof(struct vcam_device_spec));
+    memset(&dev, 0x00, sizeof(struct uvc_device_spec));
     dev.frames_dir[0] = '\0';
 
     do {
@@ -287,39 +275,20 @@ int main(int argc, char *argv[])
             printf("%s", help);
             exit(0);
         case 'c':
+            current_action = ACTION_CREATE;
             printf("Creating a new UVC device.\n");
-            ret = create_device(&dev);
             break;
         case 'm':
-            printf("Modifying the UVC device.\n");
+            current_action = ACTION_MODIFY;
             dev.idx = atoi(optarg) - 1;
-            ret = modify_device(&dev);
             break;
-        case 'r':
-            printf("Removing the UVC device.\n");
+        case 'R':
+            current_action = ACTION_DESTROY;
             dev.idx = atoi(optarg) - 1;
-            ret = remove_device(&dev);
+            printf("Removing the UVC device.\n");
             break;
         case 'l':
             list_devices();
-            break;
-        case 's':
-            if (!parse_resolution(optarg, &dev)) {
-                fprintf(stderr, "Failed to parse resolution and crop ratio.\n");
-                exit(-1);
-            }
-            printf("Setting resolution to %dx%dx%d/%d.\n", dev.width,
-                   dev.height, dev.cropratio.numerator,
-                   dev.cropratio.denominator);
-            break;
-        case 'p':
-            tmp = determine_pixfmt(optarg);
-            if (tmp < 0) {
-                fprintf(stderr, "Failed to recognize pixel format %s.\n", optarg);
-                exit(-1);
-            }
-            dev.pix_fmt = (char)tmp;
-            printf("Setting pixel format to %s.\n", optarg);
             break;
         case 'f':
             dev.fps = atoi(optarg);
@@ -333,36 +302,31 @@ int main(int argc, char *argv[])
             dev.gain = atoi(optarg);
             printf("Setting gain to %d.\n", dev.gain);
             break;
-        case 'R':
+        case 'r':
             if (!parse_resolution(optarg, &dev)) {
                 fprintf(stderr, "Failed to parse resolution.\n");
                 exit(-1);
             }
             printf("Setting resolution to %dx%d.\n", dev.width, dev.height);
             break;
+        case 'b':
+            dev.bits_per_pixel = atoi(optarg);
+            printf("Setting bits per pixel to %d.\n", dev.bits_per_pixel);
+            break;
         case 0x100: // --color-scheme
-            if (strcmp(optarg, "RGB") == 0 || strcmp(optarg, "YUV") == 0) {
-                dev.color_scheme = malloc(strlen(optarg) + 1);
-                if (dev.color_scheme) {
-                    strcpy(dev.color_scheme, optarg);
-                    printf("Setting color scheme to %s.\n", dev.color_scheme);
-                } else {
-                    fprintf(stderr, "Memory allocation failed for color scheme.\n");
-                    exit(-1);
-                }
+            if (strcmp(optarg, "RGB") == 0) {
+                printf("Setting color scheme to RGB.\n");
+                dev.color_scheme = UVC_COLOR_RGB;
+            } else if (strcmp(optarg, "YUV") == 0) {
+                printf("Setting color scheme to YUV.\n");
+                dev.color_scheme = UVC_COLOR_YUV;
             } else {
                 fprintf(stderr, "Unsupported color scheme %s. Use RGB or YUV.\n", optarg);
                 exit(-1);
             }
             break;
-        case 'b':
-            dev.bits_per_pixel = atoi(optarg);
-            printf("Setting bits per pixel to %d.\n", dev.bits_per_pixel);
-            break;
         case 0x101: // --frames-dir
-            if (load_frames_from_dir(optarg, &dev) == 0) {
-                printf("Frames loaded from %s.\n", optarg);
-            } else {
+            if (load_frames_from_dir(optarg, &dev) != 0) {
                 fprintf(stderr, "Failed to load frames from %s.\n", optarg);
                 exit(-1);
             }
@@ -377,7 +341,19 @@ int main(int argc, char *argv[])
         }
     } while (next_option != -1);
 
-    if (dev.color_scheme) free(dev.color_scheme);
+    switch (current_action) {
+    case ACTION_CREATE:
+        ret = create_device(&dev);
+        break;
+    case ACTION_DESTROY:
+        ret = remove_device(&dev);
+        break;
+    case ACTION_MODIFY:
+        ret = modify_device(&dev);
+        break;
+    case ACTION_NONE:
+        break;
+    }
 
     return ret;
 }

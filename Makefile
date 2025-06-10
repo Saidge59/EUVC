@@ -1,13 +1,13 @@
-target = vcam
-vcam-objs = module.o control.o device.o videobuf.o fb.o
+target = uvc
+uvc-objs = module.o control.o device.o videobuf.o
 obj-m = $(target).o
 
 CFLAGS_utils = -O2 -Wall -Wextra -pedantic -std=c99
 
 .PHONY: all
-all: kmod vcam-util
+all: kmod uvc-cli
 
-vcam-util: vcam-util.c vcam.h
+uvc-cli: uvc-cli.c uvc.h
 	$(CC) $(CFLAGS_utils) -o $@ $<
 
 kmod:
@@ -16,4 +16,4 @@ kmod:
 .PHONY: clean
 clean:
 	$(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
-	$(RM) vcam-util
+	$(RM) uvc-cli

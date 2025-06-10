@@ -8,8 +8,8 @@ MODULE_LICENSE("Dual MIT/GPL");
 MODULE_AUTHOR("National Cheng Kung University, Taiwan");
 MODULE_DESCRIPTION("Virtual V4L2 compatible camera device driver");
 
-#define CONTROL_DEV_NAME "vcamctl"
-#define VCAM_DEV_NAME "vcam"
+#define CONTROL_DEV_NAME "uvcctl"
+#define UVC_DEV_NAME "uvc"
 
 unsigned short devices_max = 8;
 unsigned short create_devices = 1;
@@ -34,9 +34,9 @@ MODULE_PARM_DESC(allow_scaling, "Allow image scaling by default\n");
 module_param(allow_cropping, byte, 0);
 MODULE_PARM_DESC(allow_cropping, "Allow image cropping by default\n");
 
-const char *vcam_dev_name = VCAM_DEV_NAME;
+const char *uvc_dev_name = UVC_DEV_NAME;
 
-static int __init vcam_init(void)
+static int __init uvc_init(void)
 {
     int i;
     int ret = create_control_device(CONTROL_DEV_NAME);
@@ -44,16 +44,16 @@ static int __init vcam_init(void)
         goto failure;
 
     for (i = 0; i < create_devices; i++)
-        request_vcam_device(NULL);
+        request_uvc_device(NULL);
 
 failure:
     return ret;
 }
 
-static void __exit vcam_exit(void)
+static void __exit uvc_exit(void)
 {
     destroy_control_device();
 }
 
-module_init(vcam_init);
-module_exit(vcam_exit);
+module_init(uvc_init);
+module_exit(uvc_exit);
