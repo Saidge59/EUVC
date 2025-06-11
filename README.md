@@ -11,14 +11,14 @@ This project emulates UVC (USB Video Class) devices in Linux kernel space, allow
 ## Installation
 
 1. Load required kernel modules:
-   ```bash
-   sudo modprobe -a videobuf2_vmalloc videobuf2_v4l2
-   ```
+```bash
+sudo modprobe -a videobuf2_vmalloc videobuf2_v4l2
+```
 
 2. Insert the UVC module:
-   ```bash
-   sudo insmod uvc.ko
-   ```
+```bash
+sudo insmod uvc.ko
+```
 
 ## Basic Usage
 
@@ -29,19 +29,19 @@ This project emulates UVC (USB Video Class) devices in Linux kernel space, allow
 sudo ./uvc-cli -l -d /dev/uvcctl
 ```
 
-**Create a new RGB24 device (640x480 @30fps):**
+**Create a new RGB24 device (640x360 @30fps):**
 ```bash
-sudo ./uvc-cli -c --frames-dir ~/develop/kernel/uvc/raw_frames_640x480/ --color-scheme RGB -b 16 -r 640x480 -f 30 -d /dev/uvcctl
+sudo ./uvc-cli -c --frames-dir ~/develop/kernel/uvc/raw_frames_640x360/ --color-scheme RGB -b 16 -r 640x360 -f 30 -d /dev/uvcctl
 ```
 
-**Create a new YUYV device (640x480 @30fps, 16bpp):**
+**Create a new YUYV device (640x360 @30fps, 16bpp):**
 ```bash
-sudo ./uvc-cli -c --frames-dir ~/develop/kernel/uvc/raw_frames_640x480/ --color-scheme YUV -r 640x480 -f 30 -d /dev/uvcctl
+sudo ./uvc-cli -c --frames-dir ~/develop/kernel/uvc/raw_frames_640x360/ --color-scheme YUV -r 640x360 -f 30 -d /dev/uvcctl
 ```
 
 **Modify an existing device:**
 ```bash
-sudo ./uvc-cli -m 1 --frames-dir ~/develop/kernel/uvc/raw_frames_640x480/ -r 640x480 -f 30 -d /dev/uvcctl
+sudo ./uvc-cli -m 1 --frames-dir ~/develop/kernel/uvc/raw_frames_640x360/ -r 640x360 -f 30 -d /dev/uvcctl
 ```
 
 ### Testing with Video Tools
@@ -73,9 +73,9 @@ vlc --v4l2-chroma=YUYV v4l2:///dev/video1
 ffmpeg -i ../test.mp4 -f image2 -pix_fmt rgb24 -vf scale=320:240 output_%04d.raw
 ```
 
-**Convert video to YUYV raw frames (640x480):**
+**Convert video to YUYV raw frames (640x360):**
 ```bash
-ffmpeg -i ../test.mp4 -f image2 -pix_fmt yuyv422 -vf scale=640:480 output_%04d.raw
+ffmpeg -i ../test.mp4 -f image2 -pix_fmt yuyv422 -vf scale=640:360 output_%04d.raw
 ```
 
 ## Command Reference

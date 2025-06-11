@@ -129,8 +129,8 @@ int uvc_out_videobuf2_setup(struct uvc_device *dev)
     struct vb2_queue *q = &dev->vb_out_vidq;
 
     q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    // q->io_modes = VB2_MMAP | VB2_USERPTR | VB2_READ;
-    q->io_modes = VB2_MMAP;
+    q->io_modes = VB2_MMAP | VB2_USERPTR | VB2_READ;
+    //q->io_modes = VB2_MMAP;
     q->drv_priv = dev;
     q->buf_struct_size = sizeof(struct uvc_out_buffer);
     q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;

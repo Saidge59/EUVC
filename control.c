@@ -1,4 +1,5 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+#define DEBUG
 
 #include <linux/device.h>
 #include <linux/fs.h>
@@ -132,6 +133,8 @@ static int control_iocontrol_modify_device(struct uvc_device_spec *dev_spec)
     spin_lock_irqsave(&ctldev->uvc_devices_lock, flags);
 
     if (dev_spec->width && dev_spec->height) {
+        uvc->fb_spec.width = dev_spec->width;
+        uvc->fb_spec.height = dev_spec->height;
         uvc->output_format.width = dev_spec->width;
         uvc->output_format.height = dev_spec->height;
         uvc->output_format.bytesperline = uvc->output_format.width * (uvc->fb_spec.bits_per_pixel / 8);

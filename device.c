@@ -95,9 +95,9 @@ static void fill_with_color(struct uvc_device *dev, void *vbuf_ptr)
         for (size_t i = 0; i < height; i++) {
             uint8_t *line_ptr = data + i * bytesperline;
             for (size_t j = 0; j < width * 3; j += 3) {
-                line_ptr[j] = 0;
+                line_ptr[j] = 255;
                 line_ptr[j + 1] = 0;
-                line_ptr[j + 2] = 255;
+                line_ptr[j + 2] = 0;
             }
         }
     } else if (dev->fb_spec.color_scheme == UVC_COLOR_YUV && dev->fb_spec.bits_per_pixel == 16) {
@@ -463,7 +463,7 @@ int submitter_thread(void *data)
     have_a_nap:
         if (dev->output_fps.denominator && dev->output_fps.numerator) {
             int fps = dev->output_fps.denominator / dev->output_fps.numerator;
-            timeout_ms = 1000 / fps;
+            timeout_ms = 1000 / fps * 2;
             if (timeout_ms <= 0) {
                 timeout_ms = 1;
                 pr_warn("FPS too high, using minimum timeout of 1 ms\n");
