@@ -1,21 +1,49 @@
+/**
+ * @file uvc_module.c
+ * @brief Main module file for the virtual V4L2 compatible camera device driver.
+ * This file implements the initialization and exit functions for the UVC driver module,
+ * including device creation and control device setup.
+ *
+ * Copyright © 2025 Aplit-Soft LTD.
+ * All Rights Reserved.
+ *
+ * THIS SOFTWARE is proprietary and confidential. Duplication or disclosure
+ * without explicit written permission is prohibited.
+ */
+
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 
 #include "control.h"
 
-MODULE_LICENSE("Dual MIT/GPL");
-MODULE_AUTHOR("National Cheng Kung University, Taiwan");
+MODULE_AUTHOR("Aplit-Soft LTD");
 MODULE_DESCRIPTION("Virtual V4L2 compatible camera device driver");
+MODULE_LICENSE("GPL");
 
+/**
+ * @def CONTROL_DEV_NAME
+ * @brief Name of the control device.
+ * Defines the name of the control device node (e.g., "/dev/uvcctl").
+ */
 #define CONTROL_DEV_NAME "uvcctl"
+
+/**
+ * @def UVC_DEV_NAME
+ * @brief Base name for UVC devices.
+ * Defines the base name for video device nodes (e.g., "/dev/videoX").
+ */
 #define UVC_DEV_NAME "uvc"
 
-unsigned short devices_max = 8;
-unsigned short create_devices = 1;
-unsigned char allow_pix_conversion = 0;
-unsigned char allow_scaling = 0;
-unsigned char allow_cropping = 0;
+unsigned short devices_max = 8; // Maximum number of devices supported by the module.
+unsigned short create_devices = 1; // Number of devices to create during initialization.
+
+/**
+ * @var uvc_dev_name
+ * @brief Constant string for the UVC device name base.
+ * Used as the prefix for naming video device nodes.
+ */
+const char *uvc_dev_name = UVC_DEV_NAME;
 
 module_param(devices_max, ushort, 0);
 MODULE_PARM_DESC(devices_max, "Maximal number of devices\n");
@@ -24,18 +52,9 @@ module_param(create_devices, ushort, 0);
 MODULE_PARM_DESC(create_devices,
                  "Number of devices to be created during initialization\n");
 
-module_param(allow_pix_conversion, byte, 0);
-MODULE_PARM_DESC(allow_pix_conversion,
-                 "Allow pixel format conversion by default\n");
-
-module_param(allow_scaling, byte, 0);
-MODULE_PARM_DESC(allow_scaling, "Allow image scaling by default\n");
-
-module_param(allow_cropping, byte, 0);
-MODULE_PARM_DESC(allow_cropping, "Allow image cropping by default\n");
-
-const char *uvc_dev_name = UVC_DEV_NAME;
-
+/**
+ * @brief Module initialization function.
+ */
 static int __init uvc_init(void)
 {
     int i;
@@ -50,6 +69,9 @@ failure:
     return ret;
 }
 
+/**
+ * @brief Module exit function.
+ */
 static void __exit uvc_exit(void)
 {
     destroy_control_device();

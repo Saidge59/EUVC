@@ -130,13 +130,11 @@ int uvc_out_videobuf2_setup(struct uvc_device *dev)
 
     q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     q->io_modes = VB2_MMAP | VB2_USERPTR | VB2_READ;
-    //q->io_modes = VB2_MMAP;
     q->drv_priv = dev;
     q->buf_struct_size = sizeof(struct uvc_out_buffer);
     q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
     q->ops = &uvc_vb2_ops;
     q->mem_ops = &vb2_vmalloc_memops;
-    q->dev = &dev->vdev.dev;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0)
     q->min_queued_buffers = 2;
 #else
