@@ -73,21 +73,21 @@ struct euvc_device_spec {
     unsigned int orig_height;   /**< Original height of the frame (e.g., 700). */
     unsigned int width;         /**< Current width of the frame (after cropping or scaling). */
     unsigned int height;        /**< Current height of the frame (after cropping or scaling). */
-    struct crop_ratio cropratio;/**< Crop ratio for adjusting the frame dimensions. */
+    unsigned int fps;           /**< Frames per second (negative value indicates default). */
+    unsigned int exposure;      /**< Exposure setting (negative value indicates default). */
+    unsigned int gain;          /**< Gain setting (negative value indicates default). */
+    unsigned int bits_per_pixel;/**< Bits per pixel (negative value indicates default, e.g., 8 or 24). */
+    unsigned int frame_idx;     /**< Current frame index (used for looping). */
+    unsigned int frame_count;   /**< Total number of frames in the directory. */
+    unsigned int loop;          /**< Flag to enable/disable frame looping. */
     char video_node[64];        /**< Path to the video device node (e.g., "/dev/video0"). */
-    int fps;                    /**< Frames per second (negative value indicates default). */
-    int exposure;               /**< Exposure setting (negative value indicates default). */
-    int gain;                   /**< Gain setting (negative value indicates default). */
-    int bits_per_pixel;         /**< Bits per pixel (negative value indicates default, e.g., 8 or 24). */
+    struct crop_ratio cropratio;/**< Crop ratio for adjusting the frame dimensions. */
     enum { 
         EUVC_COLOR_EMPTY = -1,   /**< Placeholder for uninitialized color scheme. */
         EUVC_COLOR_RGB = 0,      /**< RGB color scheme. */
         EUVC_COLOR_GREY = 1      /**< Greyscale color scheme. */
     } color_scheme;             /**< Color scheme of the video frame. */
     char frames_dir[256];       /**< Directory path for frame data files. */
-    int frame_idx;              /**< Current frame index (used for looping). */
-    int frame_count;            /**< Total number of frames in the directory. */
-    bool loop;                  /**< Flag to enable/disable frame looping. */
 };
 
 #endif

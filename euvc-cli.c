@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <errno.h>
+#include <limits.h>
 
 #include "euvc.h"
 
@@ -16,6 +17,7 @@
 #define INIT_VIDEOBUF2_MODULES "sudo modprobe -a videobuf2_vmalloc videobuf2_v4l2"
 #define INIT_EUVC_MODULE "sudo insmod euvc.ko"
 #define DEINIT_EUVC_MODULE "sudo rmmod euvc.ko"
+#define UNSET_VALUE UINT_MAX
 
 static const char *short_options = "hiDcm:r:ld:f:e:g:R:cs:b:fd:L:C:";
 
@@ -43,7 +45,7 @@ const struct option long_options[] = {
 const char *help =
     "\n"
     "**********************************************************************\n"
-    "**                     euvc Device Management Help                   **\n"
+    "**               Emulated UVC Device Management Help                **\n"
     "**********************************************************************\n"
     "\n"
     "  -h, --help                        Display this help message         \n"
@@ -75,7 +77,7 @@ struct euvc_device_spec device_template = {
     .exposure = 100,
     .gain = 50,
     .bits_per_pixel = 8,
-    .loop = false,
+    .loop = 1,
     .frame_idx = 0,
     .frame_count = 0,
     .cropratio = {.numerator = 1, .denominator = 1}
@@ -172,24 +174,17 @@ int create_device(struct euvc_device_spec *dev)
         return -1;
     }
 
-    if (!dev->width || !dev->height) {
-        dev->width = device_template.width;
-        dev->height = device_template.height;
-    }
-
-    if (dev->color_scheme == EUVC_COLOR_EMPTY)
-        dev->color_scheme = device_template.color_scheme;
-
-    if (dev->fps < 0)
-        dev->fps = device_template.fps;
-    if (dev->exposure < 0)
-        dev->exposure = device_template.exposure;
-    if (dev->gain < 0)
-        dev->gain = device_template.gain;
-    if (dev->bits_per_pixel < 0)
-        dev->bits_per_pixel = device_template.bits_per_pixel;
-    if (dev->frame_idx < 0)
-        dev->frame_idx = device_template.frame_idx;
+    if (dev->width == UNSET_VALUE) dev->width = device_template.width;
+    if (dev->height == UNSET_VALUE) dev->height = device_template.height;
+    if (dev->color_scheme == EUVC_COLOR_EMPTY) dev->color_scheme = device_template.color_scheme;
+    if (dev->fps == UNSET_VALUE) dev->fps = device_template.fps;
+    if (dev->exposure == UNSET_VALUE) dev->exposure = device_template.exposure;
+    if (dev->gain == UNSET_VALUE) dev->gain = device_template.gain;
+    if (dev->bits_per_pixel == UNSET_VALUE) dev->bits_per_pixel = device_template.bits_per_pixel;
+    if (dev->frame_idx == UNSET_VALUE) dev->frame_idx = device_template.frame_idx;
+    if (dev->cropratio.denominator == UNSET_VALUE) dev->cropratio.denominator = device_template.cropratio.denominator;
+    if (dev->cropratio.numerator == UNSET_VALUE) dev->cropratio.numerator = device_template.cropratio.numerator;
+    if (dev->loop == UNSET_VALUE) dev->loop = device_template.loop;
 
     printf("Creating device: width=%d, height=%d, bpp=%d, color=%d\n",
            dev->width, dev->height, dev->bits_per_pixel, dev->color_scheme);
@@ -240,32 +235,22 @@ int modify_device(struct euvc_device_spec *dev)
         return -1;
     }
 
-    if (orig_dev.orig_width || orig_dev.orig_height) {
-        dev->width = orig_dev.orig_width;
-        dev->height = orig_dev.orig_height;
-    }
-    
-    if (dev->color_scheme == -1) {
-        dev->color_scheme = orig_dev.color_scheme;
-    }
+    if (dev->width == UNSET_VALUE) dev->width = orig_dev.width;
+    if (dev->height == UNSET_VALUE) dev->height = orig_dev.height;
+    if (dev->color_scheme == EUVC_COLOR_EMPTY) dev->color_scheme = orig_dev.color_scheme;
+    if (dev->fps == UNSET_VALUE) dev->fps = orig_dev.fps;
+    if (dev->exposure == UNSET_VALUE) dev->exposure = orig_dev.exposure;
+    if (dev->gain == UNSET_VALUE) dev->gain = orig_dev.gain;
+    if (dev->bits_per_pixel == UNSET_VALUE) dev->bits_per_pixel = orig_dev.bits_per_pixel;
+    if (dev->frame_idx == UNSET_VALUE) dev->frame_idx = orig_dev.frame_idx;
+    if (dev->cropratio.denominator == UNSET_VALUE) dev->cropratio.denominator = orig_dev.cropratio.denominator;
+    if (dev->cropratio.numerator == UNSET_VALUE) dev->cropratio.numerator = orig_dev.cropratio.numerator;
+    if (dev->loop == UNSET_VALUE) dev->loop = orig_dev.loop;
 
-    if (dev->fps == -1) {
-        dev->fps = orig_dev.fps;
-    }
-    if (dev->exposure == -1) {
-        dev->exposure = orig_dev.exposure;
-    }
-    if (dev->gain == -1) {
-        dev->gain = orig_dev.gain;
-    }
-    if (dev->bits_per_pixel == -1) {
-        dev->bits_per_pixel = orig_dev.bits_per_pixel;
-    }
-    if (!dev->cropratio.numerator || !dev->cropratio.denominator) {
-        dev->cropratio = orig_dev.cropratio;
-    }
-    if (dev->frame_idx == -1) {
-        dev->frame_idx = orig_dev.frame_idx;
+    if (dev->cropratio.denominator == 0) {
+        dev->cropratio.denominator = 1;
+        fprintf(stderr, "Warning: Crop ratio denominator was 0, set to %u for device %d.\n",
+                dev->cropratio.denominator, dev->idx + 1);
     }
 
     int res = ioctl(fd, EUVC_IOCTL_MODIFY_SETTING, dev);
@@ -334,17 +319,18 @@ int main(int argc, char *argv[])
     int ret = 0;
 
     struct euvc_device_spec dev = {
-        .idx = -1,
-        .width = 0,
-        .height = 0,
-        .fps = -1,
-        .exposure = -1,
-        .gain = -1,
-        .bits_per_pixel = -1,
+        .idx = UNSET_VALUE,
+        .width = UNSET_VALUE,
+        .height = UNSET_VALUE,
+        .fps = UNSET_VALUE,
+        .exposure = UNSET_VALUE,
+        .gain = UNSET_VALUE,
+        .bits_per_pixel = UNSET_VALUE,
         .color_scheme = EUVC_COLOR_EMPTY,
-        .cropratio = {0, 0},
-        .loop = -1,
-        .frame_idx = -1,
+        .cropratio.numerator = UNSET_VALUE,
+        .cropratio.denominator = UNSET_VALUE,
+        .loop = UNSET_VALUE,
+        .frame_idx = UNSET_VALUE,
     };
     strncpy(dev.frames_dir, "", sizeof(dev.frames_dir) - 1);
 
@@ -423,10 +409,10 @@ int main(int argc, char *argv[])
             break;
         case 'L':
             if (strcmp(optarg, "1") == 0) {
-                dev.loop = true;
+                dev.loop = 1;
                 printf("Enabling frame looping.\n");
             } else if (strcmp(optarg, "0") == 0) {
-                dev.loop = false;
+                dev.loop = 0;
                 printf("Disabling frame looping.\n");
             } else {
                 fprintf(stderr, "Invalid loop value. Use 0 or 1.\n");

@@ -238,7 +238,7 @@ static struct euvc_device_spec default_euvc_spec = {
     .color_scheme = EUVC_COLOR_GREY,
     .frames_dir[0] = '\0',
     .frame_count = 0,
-    .loop = 0
+    .loop = 1
 };
 
 int request_euvc_device(struct euvc_device_spec *dev_spec)
