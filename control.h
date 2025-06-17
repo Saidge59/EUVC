@@ -1,18 +1,18 @@
-#ifndef UVC_CONTROL_H
-#define UVC_CONTROL_H
+#ifndef EUVC_CONTROL_H
+#define EUVC_CONTROL_H
 
 /**
- * @file uvc_control.h
+ * @file control.h
  * @brief Header file defining control functions for UVC devices.
  * This file provides declarations for creating, destroying, and managing control devices
  * for USB Video Class (UVC) operations, including device requests.
  */
 
-#include "uvc.h"
+#include "euvc.h"
 
 /**
  * @brief Creates a control device with the specified name.
- * @param[in] dev_name Pointer to a string containing the device name (e.g., "/dev/uvcctl").
+ * @param[in] dev_name Pointer to a string containing the device name (e.g., "/dev/euvcctl").
  * @return int Returns 0 on success, negative error code on failure.
  * @details This function initializes and registers a control device for managing UVC devices.
  * The device name is used to create a character device node in the filesystem.
@@ -29,12 +29,12 @@ void destroy_control_device(void);
 
 /**
  * @brief Requests a UVC device based on the provided specification.
- * @param[in,out] dev_spec Pointer to a uvc_device_spec structure containing device configuration.
+ * @param[in,out] dev_spec Pointer to a euvc_device_spec structure containing device configuration.
  * @return int Returns 0 on success, negative error code on failure.
  * @details This function sends a request to the kernel to create or retrieve a UVC device
  * based on the parameters in the dev_spec structure. The structure may be updated with
  * device-specific information upon success.
  */
-int request_uvc_device(struct uvc_device_spec *dev_spec);
+int request_euvc_device(struct euvc_device_spec *dev_spec);
 
 #endif

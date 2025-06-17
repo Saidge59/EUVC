@@ -1,57 +1,57 @@
-#ifndef UVC_H
-#define UVC_H
+#ifndef EUVC_H
+#define EUVC_H
 
 /**
- * @file uvc.h
+ * @file euvc.h
  * @brief Header file defining UVC (USB Video Class) device control and specification structures.
  */
 
 /**
- * @def UVC_IOC_MAGIC
+ * @def EUVC_IOC_MAGIC
  * @brief Magic number for UVC ioctl commands.
  * This value is used to identify UVC-specific ioctl operations.
  */
-#define UVC_IOC_MAGIC  'v'
+#define EUVC_IOC_MAGIC  'v'
 
 /**
- * @def UVC_IOCTL_CREATE_DEVICE
+ * @def EUVC_IOCTL_CREATE_DEVICE
  * @brief Ioctl command to create a new UVC device.
- * @param _IOW(UVC_IOC_MAGIC, 0x01, struct uvc_device_spec)
- * Writes a uvc_device_spec structure to the kernel to initialize a new device.
+ * @param _IOW(EUVC_IOC_MAGIC, 0x01, struct euvc_device_spec)
+ * Writes a euvc_device_spec structure to the kernel to initialize a new device.
  */
-#define UVC_IOCTL_CREATE_DEVICE  _IOW(UVC_IOC_MAGIC, 0x01, struct uvc_device_spec)
+#define EUVC_IOCTL_CREATE_DEVICE  _IOW(EUVC_IOC_MAGIC, 0x01, struct euvc_device_spec)
 
 /**
- * @def UVC_IOCTL_DESTROY_DEVICE
+ * @def EUVC_IOCTL_DESTROY_DEVICE
  * @brief Ioctl command to destroy an existing UVC device.
- * @param _IOW(UVC_IOC_MAGIC, 0x02, struct uvc_device_spec)
- * Writes a uvc_device_spec structure to the kernel to remove the specified device.
+ * @param _IOW(EUVC_IOC_MAGIC, 0x02, struct euvc_device_spec)
+ * Writes a euvc_device_spec structure to the kernel to remove the specified device.
  */
-#define UVC_IOCTL_DESTROY_DEVICE _IOW(UVC_IOC_MAGIC, 0x02, struct uvc_device_spec)
+#define EUVC_IOCTL_DESTROY_DEVICE _IOW(EUVC_IOC_MAGIC, 0x02, struct euvc_device_spec)
 
 /**
- * @def UVC_IOCTL_GET_DEVICE
+ * @def EUVC_IOCTL_GET_DEVICE
  * @brief Ioctl command to retrieve information about a UVC device.
- * @param _IOR(UVC_IOC_MAGIC, 0x03, struct uvc_device_spec)
- * Reads a uvc_device_spec structure from the kernel with device details.
+ * @param _IOR(EUVC_IOC_MAGIC, 0x03, struct euvc_device_spec)
+ * Reads a euvc_device_spec structure from the kernel with device details.
  */
-#define UVC_IOCTL_GET_DEVICE     _IOR(UVC_IOC_MAGIC, 0x03, struct uvc_device_spec)
+#define EUVC_IOCTL_GET_DEVICE     _IOR(EUVC_IOC_MAGIC, 0x03, struct euvc_device_spec)
 
 /**
- * @def UVC_IOCTL_ENUM_DEVICES
+ * @def EUVC_IOCTL_ENUM_DEVICES
  * @brief Ioctl command to enumerate all available UVC devices.
- * @param _IOR(UVC_IOC_MAGIC, 0x04, struct uvc_device_spec)
- * Reads a uvc_device_spec structure containing a list of available devices.
+ * @param _IOR(EUVC_IOC_MAGIC, 0x04, struct euvc_device_spec)
+ * Reads a euvc_device_spec structure containing a list of available devices.
  */
-#define UVC_IOCTL_ENUM_DEVICES   _IOR(UVC_IOC_MAGIC, 0x04, struct uvc_device_spec)
+#define EUVC_IOCTL_ENUM_DEVICES   _IOR(EUVC_IOC_MAGIC, 0x04, struct euvc_device_spec)
 
 /**
- * @def UVC_IOCTL_MODIFY_SETTING
+ * @def EUVC_IOCTL_MODIFY_SETTING
  * @brief Ioctl command to modify settings of an existing UVC device.
- * @param _IOW(UVC_IOC_MAGIC, 0x05, struct uvc_device_spec)
- * Writes a uvc_device_spec structure to the kernel to update device settings.
+ * @param _IOW(EUVC_IOC_MAGIC, 0x05, struct euvc_device_spec)
+ * Writes a euvc_device_spec structure to the kernel to update device settings.
  */
-#define UVC_IOCTL_MODIFY_SETTING _IOW(UVC_IOC_MAGIC, 0x05, struct uvc_device_spec)
+#define EUVC_IOCTL_MODIFY_SETTING _IOW(EUVC_IOC_MAGIC, 0x05, struct euvc_device_spec)
 
 /**
  * @struct crop_ratio
@@ -63,11 +63,11 @@ struct crop_ratio {
 };
 
 /**
- * @struct uvc_device_spec
+ * @struct euvc_device_spec
  * @brief Structure defining the specification of a UVC device.
  * This structure is used to pass configuration and status information between user space and kernel.
  */
-struct uvc_device_spec {
+struct euvc_device_spec {
     unsigned int idx;           /**< Index of the device (0-based). */
     unsigned int orig_width;    /**< Original width of the frame (e.g., 800). */
     unsigned int orig_height;   /**< Original height of the frame (e.g., 700). */
@@ -80,9 +80,9 @@ struct uvc_device_spec {
     int gain;                   /**< Gain setting (negative value indicates default). */
     int bits_per_pixel;         /**< Bits per pixel (negative value indicates default, e.g., 8 or 24). */
     enum { 
-        UVC_COLOR_EMPTY = -1,   /**< Placeholder for uninitialized color scheme. */
-        UVC_COLOR_RGB = 0,      /**< RGB color scheme. */
-        UVC_COLOR_GREY = 1      /**< Greyscale color scheme. */
+        EUVC_COLOR_EMPTY = -1,   /**< Placeholder for uninitialized color scheme. */
+        EUVC_COLOR_RGB = 0,      /**< RGB color scheme. */
+        EUVC_COLOR_GREY = 1      /**< Greyscale color scheme. */
     } color_scheme;             /**< Color scheme of the video frame. */
     char frames_dir[256];       /**< Directory path for frame data files. */
     int frame_idx;              /**< Current frame index (used for looping). */

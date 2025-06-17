@@ -10,11 +10,11 @@
 #include <dirent.h>
 #include <errno.h>
 
-#include "uvc.h"
+#include "euvc.h"
 
 #define PATH_MAX 256
 #define VIDEOBUF2_MODULES "sudo modprobe -a videobuf2_vmalloc videobuf2_v4l2"
-#define UVC_MODULE "sudo insmod uvc.ko"
+#define EUVC_MODULE "sudo insmod euvc.ko"
 
 static const char *short_options = "hiDcm:r:ld:f:e:g:R:cs:b:fd:L:C:";
 
@@ -42,13 +42,13 @@ const struct option long_options[] = {
 const char *help =
     "\n"
     "**********************************************************************\n"
-    "**                     UVC Device Management Help                   **\n"
+    "**                     euvc Device Management Help                   **\n"
     "**********************************************************************\n"
     "\n"
     "  -h, --help                        Display this help message         \n"
-    "  -i, --init                        Initialize modules (load videobuf2_vmalloc, videobuf2_v4l2, and uvc.ko)\n"
-    "  -D, --deinit                      Deinitialize modules (unload uvc.ko and videobuf2 modules)\n"
-    "  -c, --create                      Create new emulated UVC device    \n"
+    "  -i, --init                        Initialize modules (load videobuf2_vmalloc, videobuf2_v4l2, and euvc.ko)\n"
+    "  -D, --deinit                      Deinitialize modules (unload euvc.ko and videobuf2 modules)\n"
+    "  -c, --create                      Create new emulated euvc device    \n"
     "  -m, --modify <idx>                Modify existing device            \n"
     "  -R, --remove <idx>                Remove a device (emulate unplug)  \n"
     "  -l, --list                        List all devices                  \n"
@@ -60,15 +60,15 @@ const char *help =
     "  --color-scheme <scheme>           Set color scheme (RGB, GRAY8)     \n"
     "  -b, --bpp <bits>                  Set bits per pixel (8bpp, 24bpp)  \n"
     "  --frames-dir <path>               Load frames from directory        \n"
-    "  -d, --device /dev/*               Device node (default: /dev/uvcctl)\n"
+    "  -d, --device /dev/*               Device node (default: /dev/euvcctl)\n"
     "  -L, --loop <0|1>                  Enable (1) or disable (0) looping \n\n";
 
 enum ACTION { ACTION_NONE, ACTION_CREATE, ACTION_DESTROY, ACTION_MODIFY };
 
-struct uvc_device_spec device_template = {
+struct euvc_device_spec device_template = {
     .width = 640,
     .height = 480,
-    .color_scheme = UVC_COLOR_GREY,
+    .color_scheme = EUVC_COLOR_GREY,
     .video_node = "",
     .fps = 30,
     .exposure = 100,
@@ -80,9 +80,9 @@ struct uvc_device_spec device_template = {
     .cropratio = {.numerator = 1, .denominator = 1}
 };
 
-static char ctl_path[128] = "/dev/uvcctl";
+static char ctl_path[128] = "/dev/euvcctl";
 
-static bool parse_cropratio(char *res_str, struct uvc_device_spec *dev)
+static bool parse_cropratio(char *res_str, struct euvc_device_spec *dev)
 {
     struct crop_ratio cropratio;
     char *tmp = strtok(res_str, "/:,");
@@ -101,7 +101,7 @@ static bool parse_cropratio(char *res_str, struct uvc_device_spec *dev)
     return true;
 }
 
-bool parse_resolution(char *res_str, struct uvc_device_spec *dev)
+bool parse_resolution(char *res_str, struct euvc_device_spec *dev)
 {
     char *tmp = strtok(res_str, "x:,");
     if (!tmp)
@@ -114,7 +114,7 @@ bool parse_resolution(char *res_str, struct uvc_device_spec *dev)
     return true;
 }
 
-int load_frames_from_dir(const char *dir_path_raw, struct uvc_device_spec *dev_spec)
+int load_frames_from_dir(const char *dir_path_raw, struct euvc_device_spec *dev_spec)
 {
     struct stat st;
     DIR *dir;
@@ -163,7 +163,7 @@ int load_frames_from_dir(const char *dir_path_raw, struct uvc_device_spec *dev_s
     return 0;
 }
 
-int create_device(struct uvc_device_spec *dev)
+int create_device(struct euvc_device_spec *dev)
 {
     int fd = open(ctl_path, O_RDWR);
     if (fd == -1) {
@@ -176,7 +176,7 @@ int create_device(struct uvc_device_spec *dev)
         dev->height = device_template.height;
     }
 
-    if (dev->color_scheme == UVC_COLOR_EMPTY)
+    if (dev->color_scheme == EUVC_COLOR_EMPTY)
         dev->color_scheme = device_template.color_scheme;
 
     if (dev->fps < 0)
@@ -193,7 +193,7 @@ int create_device(struct uvc_device_spec *dev)
     printf("Creating device: width=%d, height=%d, bpp=%d, color=%d\n",
            dev->width, dev->height, dev->bits_per_pixel, dev->color_scheme);
 
-    int res = ioctl(fd, UVC_IOCTL_CREATE_DEVICE, dev);
+    int res = ioctl(fd, EUVC_IOCTL_CREATE_DEVICE, dev);
     if (res) {
         fprintf(stderr, "Failed to create a new device. Error code: %d\n", res);
     } else if (dev->frames_dir[0]) {
@@ -204,7 +204,7 @@ int create_device(struct uvc_device_spec *dev)
     return res;
 }
 
-int remove_device(struct uvc_device_spec *dev)
+int remove_device(struct euvc_device_spec *dev)
 {
     int fd = open(ctl_path, O_RDWR);
     if (fd == -1) {
@@ -212,7 +212,7 @@ int remove_device(struct uvc_device_spec *dev)
         return -1;
     }
 
-    int res = ioctl(fd, UVC_IOCTL_DESTROY_DEVICE, dev);
+    int res = ioctl(fd, EUVC_IOCTL_DESTROY_DEVICE, dev);
     if (res) {
         fprintf(stderr, "Failed to remove the device on index %d.\n",
                 dev->idx + 1);
@@ -222,9 +222,9 @@ int remove_device(struct uvc_device_spec *dev)
     return res;
 }
 
-int modify_device(struct uvc_device_spec *dev)
+int modify_device(struct euvc_device_spec *dev)
 {
-    struct uvc_device_spec orig_dev = {.idx = dev->idx};
+    struct euvc_device_spec orig_dev = {.idx = dev->idx};
 
     int fd = open(ctl_path, O_RDWR);
     if (fd == -1) {
@@ -232,7 +232,7 @@ int modify_device(struct uvc_device_spec *dev)
         return -1;
     }
 
-    if (ioctl(fd, UVC_IOCTL_GET_DEVICE, &orig_dev)) {
+    if (ioctl(fd, EUVC_IOCTL_GET_DEVICE, &orig_dev)) {
         fprintf(stderr, "Failed to find device on index %d.\n",
                 orig_dev.idx + 1);
         close(fd);
@@ -267,7 +267,7 @@ int modify_device(struct uvc_device_spec *dev)
         dev->frame_idx = orig_dev.frame_idx;
     }
 
-    int res = ioctl(fd, UVC_IOCTL_MODIFY_SETTING, dev);
+    int res = ioctl(fd, EUVC_IOCTL_MODIFY_SETTING, dev);
     if (res) {
         fprintf(stderr, "Failed to modify the device.\n");
     }
@@ -278,7 +278,7 @@ int modify_device(struct uvc_device_spec *dev)
 
 int list_devices()
 {
-    struct uvc_device_spec dev = {.idx = 0};
+    struct euvc_device_spec dev = {.idx = 0};
 
     int fd = open(ctl_path, O_RDWR);
     if (fd == -1) {
@@ -286,12 +286,12 @@ int list_devices()
         return -1;
     }
 
-    printf("Available virtual UVC compatible devices:\n");
-    while (!ioctl(fd, UVC_IOCTL_GET_DEVICE, &dev)) {
+    printf("Available virtual euvc compatible devices:\n");
+    while (!ioctl(fd, EUVC_IOCTL_GET_DEVICE, &dev)) {
         dev.idx++;
         printf("%d. (%d,%d,%s,fps=%d,exp=%d,gain=%d,bpp=%d) -> %s\n",
                dev.idx, dev.width, dev.height,
-               dev.color_scheme == UVC_COLOR_RGB ? "rgb24" : "gray8",
+               dev.color_scheme == EUVC_COLOR_RGB ? "rgb24" : "gray8",
                dev.fps, dev.exposure, dev.gain, dev.bits_per_pixel,
                dev.video_node);
     }
@@ -308,9 +308,9 @@ void init_modules()
         fprintf(stderr, "Failed to load videobuf2 modules. Error code: %d\n", result);
         return;
     }
-    result = system(UVC_MODULE);
+    result = system(EUVC_MODULE);
     if (result != 0) {
-        fprintf(stderr, "Failed to load uvc.ko. Error code: %d\n", result);
+        fprintf(stderr, "Failed to load euvc.ko. Error code: %d\n", result);
         return;
     }
     printf("Modules loaded successfully.\n");
@@ -319,9 +319,9 @@ void init_modules()
 void deinit_modules() {
     int result;
     printf("Deinitializing modules...\n");
-    result = system("sudo rmmod uvc.ko");
+    result = system("sudo rmmod euvc.ko");
     if (result != 0 && result != 256) {
-        fprintf(stderr, "Failed to unload uvc.ko. Error code: %d\n", result);
+        fprintf(stderr, "Failed to unload euvc.ko. Error code: %d\n", result);
     }
     result = system("sudo rmmod videobuf2_v4l2");
     if (result != 0 && result != 256) {
@@ -340,7 +340,7 @@ int main(int argc, char *argv[])
     enum ACTION current_action = ACTION_NONE;
     int ret = 0;
 
-    struct uvc_device_spec dev = {
+    struct euvc_device_spec dev = {
         .idx = -1,
         .width = 0,
         .height = 0,
@@ -348,7 +348,7 @@ int main(int argc, char *argv[])
         .exposure = -1,
         .gain = -1,
         .bits_per_pixel = -1,
-        .color_scheme = UVC_COLOR_EMPTY,
+        .color_scheme = EUVC_COLOR_EMPTY,
         .cropratio = {0, 0},
         .loop = -1,
         .frame_idx = -1,
@@ -369,7 +369,7 @@ int main(int argc, char *argv[])
             break;
         case 'c':
             current_action = ACTION_CREATE;
-            printf("Creating a new UVC device.\n");
+            printf("Creating a new euvc device.\n");
             break;
         case 'm':
             current_action = ACTION_MODIFY;
@@ -378,7 +378,7 @@ int main(int argc, char *argv[])
         case 'R':
             current_action = ACTION_DESTROY;
             dev.idx = atoi(optarg) - 1;
-            printf("Removing the UVC device.\n");
+            printf("Removing the euvc device.\n");
             break;
         case 'l':
             list_devices();
@@ -409,10 +409,10 @@ int main(int argc, char *argv[])
         case 0x100: // --color-scheme
             if (strcmp(optarg, "RGB") == 0) {
                 printf("Setting color scheme to RGB.\n");
-                dev.color_scheme = UVC_COLOR_RGB;
+                dev.color_scheme = EUVC_COLOR_RGB;
             } else if (strcmp(optarg, "GRAY8") == 0) {
                 printf("Setting color scheme to GRAY8.\n");
-                dev.color_scheme = UVC_COLOR_GREY;
+                dev.color_scheme = EUVC_COLOR_GREY;
             } else {
                 fprintf(stderr, "Unsupported color scheme %s. Use RGB or YUV.\n", optarg);
                 exit(-1);

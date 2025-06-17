@@ -1,13 +1,13 @@
-target = uvc
-uvc-objs = module.o control.o device.o videobuf.o
+target = euvc
+euvc-objs = module.o control.o device.o videobuf.o
 obj-m = $(target).o
 
 CFLAGS_utils = -O2 -Wall -Wextra -pedantic -std=c99
 
 .PHONY: all
-all: kmod uvc-cli
+all: kmod euvc-cli
 
-uvc-cli: uvc-cli.c uvc.h
+euvc-cli: euvc-cli.c euvc.h
 	$(CC) $(CFLAGS_utils) -o $@ $<
 
 kmod:
@@ -16,4 +16,4 @@ kmod:
 .PHONY: clean
 clean:
 	$(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
-	$(RM) uvc-cli
+	$(RM) euvc-cli

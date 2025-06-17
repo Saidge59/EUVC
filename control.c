@@ -19,9 +19,9 @@ struct control_device {
     struct class *dev_class;
     struct device *device;
     struct cdev cdev;
-    struct uvc_device **uvc_devices;
-    size_t uvc_device_count;
-    spinlock_t uvc_devices_lock;
+    struct euvc_device **euvc_devices;
+    size_t euvc_device_count;
+    spinlock_t euvc_devices_lock;
 };
 
 static struct control_device *ctldev = NULL;
@@ -61,14 +61,14 @@ static ssize_t control_write(struct file *file,
     return length;
 }
 
-static int control_iocontrol_get_device(struct uvc_device_spec *dev_spec)
+static int control_iocontrol_get_device(struct euvc_device_spec *dev_spec)
 {
-    struct uvc_device *dev;
+    struct euvc_device *dev;
 
-    if (ctldev->uvc_device_count <= dev_spec->idx)
+    if (ctldev->euvc_device_count <= dev_spec->idx)
         return -EINVAL;
 
-    dev = ctldev->uvc_devices[dev_spec->idx];
+    dev = ctldev->euvc_devices[dev_spec->idx];
     dev_spec->orig_width = dev->fb_spec.orig_width;
     dev_spec->orig_height = dev->fb_spec.orig_height;
     dev_spec->width = dev->output_format.width;
@@ -87,102 +87,102 @@ static int control_iocontrol_get_device(struct uvc_device_spec *dev_spec)
     return 0;
 }
 
-static int control_iocontrol_modify_input_setting(struct uvc_device_spec *dev_spec)
+static int control_iocontrol_modify_input_setting(struct euvc_device_spec *dev_spec)
 {
-    struct uvc_device *uvc;
+    struct euvc_device *euvc;
     unsigned long flags = 0;
 
-    if (ctldev->uvc_device_count <= dev_spec->idx) {
-        pr_err("Device index %d out of range (max %zu)\n", dev_spec->idx, ctldev->uvc_device_count - 1);
+    if (ctldev->euvc_device_count <= dev_spec->idx) {
+        pr_err("Device index %d out of range (max %zu)\n", dev_spec->idx, ctldev->euvc_device_count - 1);
         return -EINVAL;
     }
 
-    uvc = ctldev->uvc_devices[dev_spec->idx];
-    if (!uvc) {
+    euvc = ctldev->euvc_devices[dev_spec->idx];
+    if (!euvc) {
         pr_err("Device with index %d not found\n", dev_spec->idx);
         return -ENODEV;
     }
 
-    spin_lock_irqsave(&ctldev->uvc_devices_lock, flags);
+    spin_lock_irqsave(&ctldev->euvc_devices_lock, flags);
 
     set_crop_resolution(&dev_spec->width, &dev_spec->height, dev_spec->cropratio);
 
-    uvc->fb_spec.cropratio = dev_spec->cropratio;
+    euvc->fb_spec.cropratio = dev_spec->cropratio;
 
     if (dev_spec->width && dev_spec->height) {
-        uvc->fb_spec.width = dev_spec->width;
-        uvc->fb_spec.height = dev_spec->height;
-        uvc->output_format.width = dev_spec->width;
-        uvc->output_format.height = dev_spec->height;
-        uvc->output_format.bytesperline = uvc->output_format.width * (uvc->fb_spec.bits_per_pixel / 8);
-        uvc->output_format.sizeimage = uvc->output_format.bytesperline * uvc->output_format.height;
+        euvc->fb_spec.width = dev_spec->width;
+        euvc->fb_spec.height = dev_spec->height;
+        euvc->output_format.width = dev_spec->width;
+        euvc->output_format.height = dev_spec->height;
+        euvc->output_format.bytesperline = euvc->output_format.width * (euvc->fb_spec.bits_per_pixel / 8);
+        euvc->output_format.sizeimage = euvc->output_format.bytesperline * euvc->output_format.height;
         pr_info("Modified resolution %dx%d to %dx%dx%d/%d, bytesperline=%d, sizeimage=%d\n",
-                uvc->fb_spec.orig_width, uvc->fb_spec.orig_height,
-                uvc->output_format.width, uvc->output_format.height,
+                euvc->fb_spec.orig_width, euvc->fb_spec.orig_height,
+                euvc->output_format.width, euvc->output_format.height,
                 dev_spec->cropratio.numerator, dev_spec->cropratio.denominator,
-                uvc->output_format.bytesperline, uvc->output_format.sizeimage);
+                euvc->output_format.bytesperline, euvc->output_format.sizeimage);
     }
 
     if (dev_spec->fps > 0) {
-        uvc->output_fps.numerator = 1001;
-        uvc->output_fps.denominator = 1001 * dev_spec->fps;
+        euvc->output_fps.numerator = 1001;
+        euvc->output_fps.denominator = 1001 * dev_spec->fps;
     }
-    if (dev_spec->exposure >= 0) uvc->fb_spec.exposure = dev_spec->exposure;
-    if (dev_spec->gain >= 0) uvc->fb_spec.gain = dev_spec->gain;
+    if (dev_spec->exposure >= 0) euvc->fb_spec.exposure = dev_spec->exposure;
+    if (dev_spec->gain >= 0) euvc->fb_spec.gain = dev_spec->gain;
     if (dev_spec->bits_per_pixel > 0) {
-        uvc->fb_spec.bits_per_pixel = dev_spec->bits_per_pixel;
+        euvc->fb_spec.bits_per_pixel = dev_spec->bits_per_pixel;
         if (dev_spec->bits_per_pixel == 24) {
-            uvc->fb_spec.color_scheme = UVC_COLOR_RGB;
+            euvc->fb_spec.color_scheme = EUVC_COLOR_RGB;
         } else if (dev_spec->bits_per_pixel == 8) {
-            uvc->fb_spec.color_scheme = UVC_COLOR_GREY;
+            euvc->fb_spec.color_scheme = EUVC_COLOR_GREY;
         }
-        fill_v4l2pixfmt(&uvc->output_format, &uvc->fb_spec);
+        fill_v4l2pixfmt(&euvc->output_format, &euvc->fb_spec);
     }
     if (dev_spec->color_scheme != -1) {
-        uvc->fb_spec.color_scheme = dev_spec->color_scheme;
-        if (dev_spec->color_scheme == UVC_COLOR_RGB) {
-            uvc->fb_spec.bits_per_pixel = 24;
-        } else if (dev_spec->color_scheme == UVC_COLOR_GREY) {
-            uvc->fb_spec.bits_per_pixel = 8;
+        euvc->fb_spec.color_scheme = dev_spec->color_scheme;
+        if (dev_spec->color_scheme == EUVC_COLOR_RGB) {
+            euvc->fb_spec.bits_per_pixel = 24;
+        } else if (dev_spec->color_scheme == EUVC_COLOR_GREY) {
+            euvc->fb_spec.bits_per_pixel = 8;
         }
-        fill_v4l2pixfmt(&uvc->output_format, &uvc->fb_spec);
+        fill_v4l2pixfmt(&euvc->output_format, &euvc->fb_spec);
     }
     if (dev_spec->frames_dir[0]) {
-        strncpy(uvc->fb_spec.frames_dir, dev_spec->frames_dir, sizeof(uvc->fb_spec.frames_dir) - 1);
-        uvc->fb_spec.frame_count = dev_spec->frame_count;
+        strncpy(euvc->fb_spec.frames_dir, dev_spec->frames_dir, sizeof(euvc->fb_spec.frames_dir) - 1);
+        euvc->fb_spec.frame_count = dev_spec->frame_count;
     }
     
-    uvc->fb_spec.loop = dev_spec->loop; 
+    euvc->fb_spec.loop = dev_spec->loop; 
 
-    uvc->output_format.pixelformat = (uvc->fb_spec.color_scheme == UVC_COLOR_GREY) ? V4L2_PIX_FMT_GREY : V4L2_PIX_FMT_RGB24;
-    uvc->output_format.bytesperline = uvc->output_format.width * (uvc->fb_spec.bits_per_pixel / 8);
-    uvc->output_format.sizeimage = uvc->output_format.bytesperline * uvc->output_format.height;
+    euvc->output_format.pixelformat = (euvc->fb_spec.color_scheme == EUVC_COLOR_GREY) ? V4L2_PIX_FMT_GREY : V4L2_PIX_FMT_RGB24;
+    euvc->output_format.bytesperline = euvc->output_format.width * (euvc->fb_spec.bits_per_pixel / 8);
+    euvc->output_format.sizeimage = euvc->output_format.bytesperline * euvc->output_format.height;
 
-    spin_unlock_irqrestore(&ctldev->uvc_devices_lock, flags);
+    spin_unlock_irqrestore(&ctldev->euvc_devices_lock, flags);
     return 0;
 }
 
-static int control_iocontrol_destroy_device(struct uvc_device_spec *dev_spec)
+static int control_iocontrol_destroy_device(struct euvc_device_spec *dev_spec)
 {
-    struct uvc_device *dev;
+    struct euvc_device *dev;
     unsigned long flags = 0;
     int i;
 
-    if (ctldev->uvc_device_count <= dev_spec->idx)
+    if (ctldev->euvc_device_count <= dev_spec->idx)
         return -EINVAL;
 
-    dev = ctldev->uvc_devices[dev_spec->idx];
+    dev = ctldev->euvc_devices[dev_spec->idx];
 
-    pr_info("uvc: USB disconnect, device number %d\n", dev_spec->idx + 1);
+    pr_info("euvc: USB disconnect, device number %d\n", dev_spec->idx + 1);
     v4l2_event_queue(&dev->vdev, &dev->disconnect_event);
 
-    spin_lock_irqsave(&ctldev->uvc_devices_lock, flags);
-    for (i = dev_spec->idx; i < (ctldev->uvc_device_count); i++)
-        ctldev->uvc_devices[i] = ctldev->uvc_devices[i + 1];
-    ctldev->uvc_devices[--ctldev->uvc_device_count] = NULL;
-    spin_unlock_irqrestore(&ctldev->uvc_devices_lock, flags);
+    spin_lock_irqsave(&ctldev->euvc_devices_lock, flags);
+    for (i = dev_spec->idx; i < (ctldev->euvc_device_count); i++)
+        ctldev->euvc_devices[i] = ctldev->euvc_devices[i + 1];
+    ctldev->euvc_devices[--ctldev->euvc_device_count] = NULL;
+    spin_unlock_irqrestore(&ctldev->euvc_devices_lock, flags);
 
-    destroy_uvc_device(dev);
+    destroy_euvc_device(dev);
 
     return 0;
 }
@@ -191,34 +191,34 @@ static long control_ioctl(struct file *file,
                           unsigned int iocontrol_cmd,
                           unsigned long iocontrol_param)
 {
-    struct uvc_device_spec dev_spec;
+    struct euvc_device_spec dev_spec;
     long ret = copy_from_user(&dev_spec, (void __user *) iocontrol_param,
-                              sizeof(struct uvc_device_spec));
+                              sizeof(struct euvc_device_spec));
     if (ret != 0) {
         pr_warn("Failed to copy_from_user!");
         return -1;
     }
     switch (iocontrol_cmd) {
-    case UVC_IOCTL_CREATE_DEVICE:
+    case EUVC_IOCTL_CREATE_DEVICE:
         pr_info("Requesting new device\n");
-        ret = request_uvc_device(&dev_spec);
+        ret = request_euvc_device(&dev_spec);
         break;
-    case UVC_IOCTL_DESTROY_DEVICE:
+    case EUVC_IOCTL_DESTROY_DEVICE:
         pr_info("Requesting removal of device\n");
         ret = control_iocontrol_destroy_device(&dev_spec);
         break;
-    case UVC_IOCTL_GET_DEVICE:
+    case EUVC_IOCTL_GET_DEVICE:
         pr_debug("Get device(%d)\n", dev_spec.idx);
         ret = control_iocontrol_get_device(&dev_spec);
         if (!ret) {
             if (copy_to_user((void *__user *) iocontrol_param, &dev_spec,
-                             sizeof(struct uvc_device_spec)) != 0) {
+                             sizeof(struct euvc_device_spec)) != 0) {
                 pr_warn("Failed to copy_to_user!");
                 ret = -1;
             }
         }
         break;
-    case UVC_IOCTL_MODIFY_SETTING:
+    case EUVC_IOCTL_MODIFY_SETTING:
         ret = control_iocontrol_modify_input_setting(&dev_spec);
         break;
     default:
@@ -227,7 +227,7 @@ static long control_ioctl(struct file *file,
     return ret;
 }
 
-static struct uvc_device_spec default_uvc_spec = {
+static struct euvc_device_spec default_euvc_spec = {
     .width = 800,
     .height = 700,
     .cropratio = {.numerator = 1, .denominator = 1},
@@ -235,36 +235,36 @@ static struct uvc_device_spec default_uvc_spec = {
     .exposure = 100,
     .gain = 50,
     .bits_per_pixel = 8,
-    .color_scheme = UVC_COLOR_GREY,
+    .color_scheme = EUVC_COLOR_GREY,
     .frames_dir[0] = '\0',
     .frame_count = 0,
     .loop = 0
 };
 
-int request_uvc_device(struct uvc_device_spec *dev_spec)
+int request_euvc_device(struct euvc_device_spec *dev_spec)
 {
-    struct uvc_device *uvc;
+    struct euvc_device *euvc;
     int idx;
     unsigned long flags = 0;
 
     if (!ctldev)
         return -ENODEV;
 
-    if (ctldev->uvc_device_count > devices_max)
+    if (ctldev->euvc_device_count > devices_max)
         return -ENOMEM;
 
     if (!dev_spec)
-        uvc = create_uvc_device(ctldev->uvc_device_count, &default_uvc_spec);
+        euvc = create_euvc_device(ctldev->euvc_device_count, &default_euvc_spec);
     else
-        uvc = create_uvc_device(ctldev->uvc_device_count, dev_spec);
+        euvc = create_euvc_device(ctldev->euvc_device_count, dev_spec);
 
-    if (!uvc)
+    if (!euvc)
         return -ENODEV;
 
-    spin_lock_irqsave(&ctldev->uvc_devices_lock, flags);
-    idx = ctldev->uvc_device_count++;
-    ctldev->uvc_devices[idx] = uvc;
-    spin_unlock_irqrestore(&ctldev->uvc_devices_lock, flags);
+    spin_lock_irqsave(&ctldev->euvc_devices_lock, flags);
+    idx = ctldev->euvc_device_count++;
+    ctldev->euvc_devices[idx] = euvc;
+    spin_unlock_irqrestore(&ctldev->euvc_devices_lock, flags);
     return 0;
 }
 
@@ -275,17 +275,17 @@ static struct control_device *alloc_control_device(void)
     if (!res)
         goto return_res;
 
-    res->uvc_devices = (struct uvc_device **) kmalloc(
-        sizeof(struct uvc_device *) * devices_max, GFP_KERNEL);
-    if (!(res->uvc_devices))
-        goto uvc_alloc_failure;
-    memset(res->uvc_devices, 0x00,
-           sizeof(struct uvc_devices *) * devices_max);
-    res->uvc_device_count = 0;
+    res->euvc_devices = (struct euvc_device **) kmalloc(
+        sizeof(struct euvc_device *) * devices_max, GFP_KERNEL);
+    if (!(res->euvc_devices))
+        goto euvc_alloc_failure;
+    memset(res->euvc_devices, 0x00,
+           sizeof(struct euvc_devices *) * devices_max);
+    res->euvc_device_count = 0;
 
     return res;
 
-uvc_alloc_failure:
+euvc_alloc_failure:
     kfree(res);
     res = NULL;
 return_res:
@@ -295,9 +295,9 @@ return_res:
 static void free_control_device(struct control_device *dev)
 {
     size_t i;
-    for (i = 0; i < dev->uvc_device_count; i++)
-        destroy_uvc_device(dev->uvc_devices[i]);
-    kfree(dev->uvc_devices);
+    for (i = 0; i < dev->euvc_device_count; i++)
+        destroy_euvc_device(dev->euvc_devices[i]);
+    kfree(dev->euvc_devices);
     device_destroy(dev->dev_class, dev->dev_number);
     class_destroy(dev->dev_class);
     cdev_del(&dev->cdev);
@@ -359,7 +359,7 @@ int __init create_control_device(const char *dev_name)
         goto device_create_failure;
     }
 
-    spin_lock_init(&ctldev->uvc_devices_lock);
+    spin_lock_init(&ctldev->euvc_devices_lock);
 
     return 0;
 device_create_failure:

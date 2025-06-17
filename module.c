@@ -1,7 +1,7 @@
 /**
- * @file uvc_module.c
+ * @file module.c
  * @brief Main module file for the virtual V4L2 compatible camera device driver.
- * This file implements the initialization and exit functions for the UVC driver module,
+ * This file implements the initialization and exit functions for the Emulated UVC driver module,
  * including device creation and control device setup.
  *
  * Copyright © 2025 Aplit-Soft LTD.
@@ -24,26 +24,26 @@ MODULE_LICENSE("GPL");
 /**
  * @def CONTROL_DEV_NAME
  * @brief Name of the control device.
- * Defines the name of the control device node (e.g., "/dev/uvcctl").
+ * Defines the name of the control device node (e.g., "/dev/euvcctl").
  */
-#define CONTROL_DEV_NAME "uvcctl"
+#define CONTROL_DEV_NAME "euvcctl"
 
 /**
- * @def UVC_DEV_NAME
+ * @def EUVC_DEV_NAME
  * @brief Base name for UVC devices.
  * Defines the base name for video device nodes (e.g., "/dev/videoX").
  */
-#define UVC_DEV_NAME "uvc"
+#define EUVC_DEV_NAME "euvc"
 
 unsigned short devices_max = 8; // Maximum number of devices supported by the module.
 unsigned short create_devices = 1; // Number of devices to create during initialization.
 
 /**
- * @var uvc_dev_name
+ * @var euvc_dev_name
  * @brief Constant string for the UVC device name base.
  * Used as the prefix for naming video device nodes.
  */
-const char *uvc_dev_name = UVC_DEV_NAME;
+const char *euvc_dev_name = EUVC_DEV_NAME;
 
 module_param(devices_max, ushort, 0);
 MODULE_PARM_DESC(devices_max, "Maximal number of devices\n");
@@ -55,7 +55,7 @@ MODULE_PARM_DESC(create_devices,
 /**
  * @brief Module initialization function.
  */
-static int __init uvc_init(void)
+static int __init euvc_init(void)
 {
     int i;
     int ret = create_control_device(CONTROL_DEV_NAME);
@@ -63,7 +63,7 @@ static int __init uvc_init(void)
         goto failure;
 
     for (i = 0; i < create_devices; i++)
-        request_uvc_device(NULL);
+        request_euvc_device(NULL);
 
 failure:
     return ret;
@@ -72,10 +72,10 @@ failure:
 /**
  * @brief Module exit function.
  */
-static void __exit uvc_exit(void)
+static void __exit euvc_exit(void)
 {
     destroy_control_device();
 }
 
-module_init(uvc_init);
-module_exit(uvc_exit);
+module_init(euvc_init);
+module_exit(euvc_exit);

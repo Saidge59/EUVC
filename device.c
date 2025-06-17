@@ -11,13 +11,13 @@
 #include "device.h"
 #include "videobuf.h"
 
-extern const char *uvc_dev_name;
+extern const char *euvc_dev_name;
 
 struct __attribute__((__packed__)) rgb_struct {
     unsigned char r, g, b;
 };
 
-static const struct uvc_device_format uvc_supported_fmts[] = {
+static const struct euvc_device_format euvc_supported_fmts[] = {
     {
         .name = "RGB24 (LE)",
         .fourcc = V4L2_PIX_FMT_RGB24,
@@ -30,7 +30,7 @@ static const struct uvc_device_format uvc_supported_fmts[] = {
     },
 };
 
-static const struct v4l2_file_operations uvc_fops = {
+static const struct v4l2_file_operations euvc_fops = {
     .owner = THIS_MODULE,
     .open = v4l2_fh_open,
     .release = vb2_fop_release,
@@ -40,18 +40,18 @@ static const struct v4l2_file_operations uvc_fops = {
     .mmap = vb2_fop_mmap,
 };
 
-static const struct v4l2_frmsize_discrete uvc_sizes[] = {
+static const struct v4l2_frmsize_discrete euvc_sizes[] = {
     {480, 360},
     {VGA_WIDTH, VGA_HEIGHT},
     {HD_720_WIDTH, HD_720_HEIGHT},
 };
 
-static int uvc_querycap(struct file *file,
+static int euvc_querycap(struct file *file,
                          void *priv,
                          struct v4l2_capability *cap)
 {
-    strcpy(cap->driver, uvc_dev_name);
-    strcpy(cap->card, uvc_dev_name);
+    strcpy(cap->driver, euvc_dev_name);
+    strcpy(cap->card, euvc_dev_name);
     strcpy(cap->bus_info, "platform: virtual");
     cap->capabilities = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING |
                         V4L2_CAP_READWRITE | V4L2_CAP_DEVICE_CAPS;
@@ -59,7 +59,7 @@ static int uvc_querycap(struct file *file,
     return 0;
 }
 
-static int uvc_enum_input(struct file *file,
+static int euvc_enum_input(struct file *file,
                            void *priv,
                            struct v4l2_input *inp)
 {
@@ -68,27 +68,27 @@ static int uvc_enum_input(struct file *file,
 
     inp->type = V4L2_INPUT_TYPE_CAMERA;
     inp->capabilities = 0;
-    sprintf(inp->name, "uvc_in %u", inp->index);
+    sprintf(inp->name, "euvc_in %u", inp->index);
     return 0;
 }
 
-static int uvc_g_input(struct file *file, void *priv, unsigned int *i)
+static int euvc_g_input(struct file *file, void *priv, unsigned int *i)
 {
     *i = 0;
     return 0;
 }
 
-static int uvc_s_input(struct file *file, void *priv, unsigned int i)
+static int euvc_s_input(struct file *file, void *priv, unsigned int i)
 {
     return (i >= 1) ? -EINVAL : 0;
 }
 
-static int uvc_enum_fmt_vid_cap(struct file *file,
+static int euvc_enum_fmt_vid_cap(struct file *file,
                                  void *priv,
                                  struct v4l2_fmtdesc *f)
 {
-    struct uvc_device_format *fmt;
-    struct uvc_device *dev = (struct uvc_device *) video_drvdata(file);
+    struct euvc_device_format *fmt;
+    struct euvc_device *dev = (struct euvc_device *) video_drvdata(file);
     int idx = f->index;
 
     if (idx >= dev->nr_fmts)
@@ -100,16 +100,16 @@ static int uvc_enum_fmt_vid_cap(struct file *file,
     return 0;
 }
 
-static int uvc_g_fmt_vid_cap(struct file *file,
+static int euvc_g_fmt_vid_cap(struct file *file,
                               void *priv,
                               struct v4l2_format *f)
 {
-    struct uvc_device *dev = (struct uvc_device *) video_drvdata(file);
+    struct euvc_device *dev = (struct euvc_device *) video_drvdata(file);
     memcpy(&f->fmt.pix, &dev->output_format, sizeof(struct v4l2_pix_format));
     return 0;
 }
 
-static bool check_supported_pixfmt(struct uvc_device *dev, unsigned int fourcc)
+static bool check_supported_pixfmt(struct euvc_device *dev, unsigned int fourcc)
 {
     int i;
     for (i = 0; i < dev->nr_fmts; i++) {
@@ -137,13 +137,13 @@ void set_crop_resolution(__u32 *width,
     *height = crop.height;
 }
 
-static int uvc_try_fmt_vid_cap(struct file *file,
+static int euvc_try_fmt_vid_cap(struct file *file,
                                 void *priv,
                                 struct v4l2_format *f)
 {
-    struct uvc_device *dev = (struct uvc_device *)video_drvdata(file);
+    struct euvc_device *dev = (struct euvc_device *)video_drvdata(file);
 
-    if (dev->fb_spec.color_scheme == UVC_COLOR_GREY && dev->fb_spec.bits_per_pixel == 8) {
+    if (dev->fb_spec.color_scheme == EUVC_COLOR_GREY && dev->fb_spec.bits_per_pixel == 8) {
         f->fmt.pix.pixelformat = V4L2_PIX_FMT_GREY;
         f->fmt.pix.bytesperline = f->fmt.pix.width;
         f->fmt.pix.sizeimage = f->fmt.pix.width * f->fmt.pix.height;
@@ -170,14 +170,14 @@ static int uvc_try_fmt_vid_cap(struct file *file,
     return 0;
 }
 
-static int uvc_s_fmt_vid_cap(struct file *file,
+static int euvc_s_fmt_vid_cap(struct file *file,
                               void *priv,
                               struct v4l2_format *f)
 {
     int ret;
-    struct uvc_device *dev = (struct uvc_device *)video_drvdata(file);
+    struct euvc_device *dev = (struct euvc_device *)video_drvdata(file);
 
-    ret = uvc_try_fmt_vid_cap(file, priv, f);
+    ret = euvc_try_fmt_vid_cap(file, priv, f);
     if (ret < 0)
         return ret;
 
@@ -186,10 +186,10 @@ static int uvc_s_fmt_vid_cap(struct file *file,
     dev->fb_spec.height = f->fmt.pix.height;
     if (f->fmt.pix.pixelformat == V4L2_PIX_FMT_GREY) {
         dev->fb_spec.bits_per_pixel = 8;
-        dev->fb_spec.color_scheme = UVC_COLOR_GREY;
+        dev->fb_spec.color_scheme = EUVC_COLOR_GREY;
     } else {
         dev->fb_spec.bits_per_pixel = 24;
-        dev->fb_spec.color_scheme = UVC_COLOR_RGB;
+        dev->fb_spec.color_scheme = EUVC_COLOR_RGB;
     }
     fill_v4l2pixfmt(&dev->output_format, &dev->fb_spec);
 
@@ -201,17 +201,17 @@ static int uvc_s_fmt_vid_cap(struct file *file,
              (f->fmt.pix.pixelformat >> 24 & 0xff));
 
     vb2_queue_release(&dev->vb_out_vidq);
-    uvc_out_videobuf2_setup(dev);
+    euvc_out_videobuf2_setup(dev);
 
     return 0;
 }
 
-static int uvc_enum_frameintervals(struct file *file,
+static int euvc_enum_frameintervals(struct file *file,
                                     void *priv,
                                     struct v4l2_frmivalenum *fival)
 {
     struct v4l2_frmival_stepwise *frm_step;
-    struct uvc_device *dev = (struct uvc_device *) video_drvdata(file);
+    struct euvc_device *dev = (struct euvc_device *) video_drvdata(file);
 
     if (fival->index > 0) {
         pr_debug("Index out of range\n");
@@ -246,18 +246,18 @@ static int uvc_enum_frameintervals(struct file *file,
     return 0;
 }
 
-static int uvc_g_parm(struct file *file,
+static int euvc_g_parm(struct file *file,
                        void *priv,
                        struct v4l2_streamparm *sp)
 {
-    struct uvc_device *dev;
+    struct euvc_device *dev;
     struct v4l2_captureparm *cp;
 
     if (sp->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
         return -EINVAL;
 
     cp = &sp->parm.capture;
-    dev = (struct uvc_device *) video_drvdata(file);
+    dev = (struct euvc_device *) video_drvdata(file);
 
     memset(cp, 0x00, sizeof(struct v4l2_captureparm));
     cp->capability = V4L2_CAP_TIMEPERFRAME;
@@ -268,18 +268,18 @@ static int uvc_g_parm(struct file *file,
     return 0;
 }
 
-static int uvc_s_parm(struct file *file,
+static int euvc_s_parm(struct file *file,
                        void *priv,
                        struct v4l2_streamparm *sp)
 {
-    struct uvc_device *dev;
+    struct euvc_device *dev;
     struct v4l2_captureparm *cp;
 
     if (sp->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
         return -EINVAL;
 
     cp = &sp->parm.capture;
-    dev = (struct uvc_device *) video_drvdata(file);
+    dev = (struct euvc_device *) video_drvdata(file);
 
     cp->capability = V4L2_CAP_TIMEPERFRAME;
     if (!cp->timeperframe.numerator || !cp->timeperframe.denominator)
@@ -294,13 +294,13 @@ static int uvc_s_parm(struct file *file,
     return 0;
 }
 
-static int uvc_enum_framesizes(struct file *file,
+static int euvc_enum_framesizes(struct file *file,
                                 void *priv,
                                 struct v4l2_frmsizeenum *fsize)
 {
     struct v4l2_frmsize_discrete *size_discrete;
 
-    struct uvc_device *dev = (struct uvc_device *) video_drvdata(file);
+    struct euvc_device *dev = (struct euvc_device *) video_drvdata(file);
     if (!check_supported_pixfmt(dev, fsize->pixel_format))
         return -EINVAL;
 
@@ -315,19 +315,19 @@ static int uvc_enum_framesizes(struct file *file,
     return 0;
 }
 
-static const struct v4l2_ioctl_ops uvc_ioctl_ops = {
-    .vidioc_querycap = uvc_querycap,
-    .vidioc_enum_input = uvc_enum_input,
-    .vidioc_g_input = uvc_g_input,
-    .vidioc_s_input = uvc_s_input,
-    .vidioc_enum_fmt_vid_cap = uvc_enum_fmt_vid_cap,
-    .vidioc_g_fmt_vid_cap = uvc_g_fmt_vid_cap,
-    .vidioc_try_fmt_vid_cap = uvc_try_fmt_vid_cap,
-    .vidioc_s_fmt_vid_cap = uvc_s_fmt_vid_cap,
-    .vidioc_g_parm = uvc_g_parm,
-    .vidioc_s_parm = uvc_s_parm,
-    .vidioc_enum_frameintervals = uvc_enum_frameintervals,
-    .vidioc_enum_framesizes = uvc_enum_framesizes,
+static const struct v4l2_ioctl_ops euvc_ioctl_ops = {
+    .vidioc_querycap = euvc_querycap,
+    .vidioc_enum_input = euvc_enum_input,
+    .vidioc_g_input = euvc_g_input,
+    .vidioc_s_input = euvc_s_input,
+    .vidioc_enum_fmt_vid_cap = euvc_enum_fmt_vid_cap,
+    .vidioc_g_fmt_vid_cap = euvc_g_fmt_vid_cap,
+    .vidioc_try_fmt_vid_cap = euvc_try_fmt_vid_cap,
+    .vidioc_s_fmt_vid_cap = euvc_s_fmt_vid_cap,
+    .vidioc_g_parm = euvc_g_parm,
+    .vidioc_s_parm = euvc_s_parm,
+    .vidioc_enum_frameintervals = euvc_enum_frameintervals,
+    .vidioc_enum_framesizes = euvc_enum_framesizes,
     .vidioc_reqbufs = vb2_ioctl_reqbufs,
     .vidioc_create_bufs = vb2_ioctl_create_bufs,
     .vidioc_prepare_buf = vb2_ioctl_prepare_buf,
@@ -338,13 +338,13 @@ static const struct v4l2_ioctl_ops uvc_ioctl_ops = {
     .vidioc_streamon = vb2_ioctl_streamon,
     .vidioc_streamoff = vb2_ioctl_streamoff};
 
-static const struct video_device uvc_video_device_template = {
-    .fops = &uvc_fops,
-    .ioctl_ops = &uvc_ioctl_ops,
+static const struct video_device euvc_video_device_template = {
+    .fops = &euvc_fops,
+    .ioctl_ops = &euvc_ioctl_ops,
     .release = video_device_release_empty,
 };
 
-void fill_v4l2pixfmt(struct v4l2_pix_format *fmt, struct uvc_device_spec *dev_spec)
+void fill_v4l2pixfmt(struct v4l2_pix_format *fmt, struct euvc_device_spec *dev_spec)
 {
     if (!fmt || !dev_spec)
         return;
@@ -354,7 +354,7 @@ void fill_v4l2pixfmt(struct v4l2_pix_format *fmt, struct uvc_device_spec *dev_sp
     fmt->height = dev_spec->height;
     pr_debug("Filling %dx%d\n", dev_spec->width, dev_spec->height);
 
-    if (dev_spec->bits_per_pixel == 8 && dev_spec->color_scheme == UVC_COLOR_GREY) {
+    if (dev_spec->bits_per_pixel == 8 && dev_spec->color_scheme == EUVC_COLOR_GREY) {
         fmt->pixelformat = V4L2_PIX_FMT_GREY;
         fmt->bytesperline = fmt->width;
         fmt->colorspace = V4L2_COLORSPACE_SMPTE170M;
@@ -368,7 +368,7 @@ void fill_v4l2pixfmt(struct v4l2_pix_format *fmt, struct uvc_device_spec *dev_sp
     fmt->sizeimage = fmt->bytesperline * fmt->height;
 }
 
-static int load_raw_frame(struct uvc_device *dev, void *vbuf_ptr, int frame_idx)
+static int load_raw_frame(struct euvc_device *dev, void *vbuf_ptr, int frame_idx)
 {
     char filename[256];
     struct file *filp = NULL;
@@ -398,7 +398,7 @@ static int load_raw_frame(struct uvc_device *dev, void *vbuf_ptr, int frame_idx)
     return 0;
 }
 
-static void fill_with_color(struct uvc_device *dev, void *vbuf_ptr)
+static void fill_with_color(struct euvc_device *dev, void *vbuf_ptr)
 {
     uint8_t *data = (uint8_t *)vbuf_ptr;
     size_t bytesperline = dev->output_format.bytesperline;
@@ -424,7 +424,7 @@ static void fill_with_color(struct uvc_device *dev, void *vbuf_ptr)
     }
 }
 
-static void submit_noinput_buffer(struct uvc_out_buffer *buf, struct uvc_device *dev)
+static void submit_noinput_buffer(struct euvc_out_buffer *buf, struct euvc_device *dev)
 {
     void *vbuf_ptr = vb2_plane_vaddr(&buf->vb.vb2_buf, 0);
 
@@ -527,11 +527,11 @@ done:
 int submitter_thread(void *data)
 {
     unsigned long flags = 0;
-    struct uvc_device *dev = (struct uvc_device *) data;
-    struct uvc_out_queue *q = &dev->uvc_out_vidq;
+    struct euvc_device *dev = (struct euvc_device *) data;
+    struct euvc_out_queue *q = &dev->euvc_out_vidq;
 
     while (!kthread_should_stop()) {
-        struct uvc_out_buffer *buf;
+        struct euvc_out_buffer *buf;
         int timeout_ms, timeout;
 
         /* Do something and sleep */
@@ -542,7 +542,7 @@ int submitter_thread(void *data)
             spin_unlock_irqrestore(&dev->out_q_slock, flags);
             goto have_a_nap;
         }
-        buf = list_entry(q->active.next, struct uvc_out_buffer, list);
+        buf = list_entry(q->active.next, struct euvc_out_buffer, list);
         list_del(&buf->list);
         spin_unlock_irqrestore(&dev->out_q_slock, flags);
 
@@ -586,48 +586,48 @@ int submitter_thread(void *data)
     return 0;
 }
 
-struct uvc_device *create_uvc_device(size_t idx,
-                                       struct uvc_device_spec *dev_spec)
+struct euvc_device *create_euvc_device(size_t idx,
+                                       struct euvc_device_spec *dev_spec)
 {
     struct video_device *vdev;
     int i, ret = 0;
 
-    struct uvc_device *uvc =
-        (struct uvc_device *) kzalloc(sizeof(struct uvc_device), GFP_KERNEL);
-    if (!uvc)
-        goto uvc_alloc_failure;
+    struct euvc_device *euvc =
+        (struct euvc_device *) kzalloc(sizeof(struct euvc_device), GFP_KERNEL);
+    if (!euvc)
+        goto euvc_alloc_failure;
 
-    snprintf(uvc->v4l2_dev.name, sizeof(uvc->v4l2_dev.name), "%s-%d",
-             uvc_dev_name, (int) idx);
-    ret = v4l2_device_register(NULL, &uvc->v4l2_dev);
+    snprintf(euvc->v4l2_dev.name, sizeof(euvc->v4l2_dev.name), "%s-%d",
+             euvc_dev_name, (int) idx);
+    ret = v4l2_device_register(NULL, &euvc->v4l2_dev);
     if (ret) {
         pr_err("v4l2 registration failure\n");
         goto v4l2_registration_failure;
     }
 
-    mutex_init(&uvc->uvc_mutex);
+    mutex_init(&euvc->euvc_mutex);
 
-    ret = uvc_out_videobuf2_setup(uvc);
+    ret = euvc_out_videobuf2_setup(euvc);
     if (ret) {
         pr_err(" failed to initialize output videobuffer\n");
         goto vb2_out_init_failed;
     }
 
-    spin_lock_init(&uvc->out_q_slock);
+    spin_lock_init(&euvc->out_q_slock);
 
-    INIT_LIST_HEAD(&uvc->uvc_out_vidq.active);
+    INIT_LIST_HEAD(&euvc->euvc_out_vidq.active);
 
-    vdev = &uvc->vdev;
-    *vdev = uvc_video_device_template;
-    vdev->v4l2_dev = &uvc->v4l2_dev;
-    vdev->queue = &uvc->vb_out_vidq;
-    vdev->lock = &uvc->uvc_mutex;
+    vdev = &euvc->vdev;
+    *vdev = euvc_video_device_template;
+    vdev->v4l2_dev = &euvc->v4l2_dev;
+    vdev->queue = &euvc->vb_out_vidq;
+    vdev->lock = &euvc->euvc_mutex;
     vdev->tvnorms = 0;
     vdev->device_caps =
         V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING | V4L2_CAP_READWRITE;
 
-    snprintf(vdev->name, sizeof(vdev->name), "%s-%d", uvc_dev_name, (int) idx);
-    video_set_drvdata(vdev, uvc);
+    snprintf(vdev->name, sizeof(vdev->name), "%s-%d", euvc_dev_name, (int) idx);
+    video_set_drvdata(vdev, euvc);
 
     ret = video_register_device(vdev, VFL_TYPE_VIDEO, -1);
 
@@ -636,57 +636,57 @@ struct uvc_device *create_uvc_device(size_t idx,
         goto video_regdev_failure;
     }
 
-    for (i = 0; i < ARRAY_SIZE(uvc_supported_fmts); i++)
-        uvc->out_fmts[i] = uvc_supported_fmts[i];
-    uvc->nr_fmts = ARRAY_SIZE(uvc_supported_fmts);
+    for (i = 0; i < ARRAY_SIZE(euvc_supported_fmts); i++)
+        euvc->out_fmts[i] = euvc_supported_fmts[i];
+    euvc->nr_fmts = ARRAY_SIZE(euvc_supported_fmts);
 
-    uvc->fb_spec = *dev_spec;
-    strncpy(uvc->fb_spec.frames_dir, dev_spec->frames_dir, sizeof(uvc->fb_spec.frames_dir) - 1);
-    uvc->fb_spec.frame_count = dev_spec->frame_count;
+    euvc->fb_spec = *dev_spec;
+    strncpy(euvc->fb_spec.frames_dir, dev_spec->frames_dir, sizeof(euvc->fb_spec.frames_dir) - 1);
+    euvc->fb_spec.frame_count = dev_spec->frame_count;
 
-    uvc->fb_spec.orig_width = dev_spec->width;
-    uvc->fb_spec.orig_height = dev_spec->height;
+    euvc->fb_spec.orig_width = dev_spec->width;
+    euvc->fb_spec.orig_height = dev_spec->height;
 
-    fill_v4l2pixfmt(&uvc->output_format, &uvc->fb_spec);
-    uvc->output_format.width = dev_spec->width;
-    uvc->output_format.height = dev_spec->height;
+    fill_v4l2pixfmt(&euvc->output_format, &euvc->fb_spec);
+    euvc->output_format.width = dev_spec->width;
+    euvc->output_format.height = dev_spec->height;
 
-    uvc->sub_thr_id = NULL;
+    euvc->sub_thr_id = NULL;
 
-    uvc->output_fps.numerator = 1001;
-    uvc->output_fps.denominator = 30000;
+    euvc->output_fps.numerator = 1001;
+    euvc->output_fps.denominator = 30000;
 
-    uvc->disconnect_event.type = UVC_EVENT_DISCONNECT;
-    uvc->disconnect_event.u.data[0] = 0;
+    euvc->disconnect_event.type = EUVC_EVENT_DISCONNECT;
+    euvc->disconnect_event.u.data[0] = 0;
 
-    pr_info("uvc: Created virtual device #%zu (%s)\n", idx, uvc->vdev.name);
+    pr_info("euvc: Created virtual device #%zu (%s)\n", idx, euvc->vdev.name);
 
-    return uvc;
+    return euvc;
 
 video_regdev_failure:
-    video_unregister_device(&uvc->vdev);
-    video_device_release(&uvc->vdev);
+    video_unregister_device(&euvc->vdev);
+    video_device_release(&euvc->vdev);
 vb2_out_init_failed:
-    v4l2_device_unregister(&uvc->v4l2_dev);
+    v4l2_device_unregister(&euvc->v4l2_dev);
 v4l2_registration_failure:
-    kfree(uvc);
-uvc_alloc_failure:
+    kfree(euvc);
+euvc_alloc_failure:
     return NULL;
 }
 
-void destroy_uvc_device(struct uvc_device *uvc)
+void destroy_euvc_device(struct euvc_device *euvc)
 {
-    if (!uvc) 
+    if (!euvc) 
         return;
 
-    pr_info("uvc: Destroying virtual device (%s)\n", uvc->vdev.name);
+    pr_info("euvc: Destroying virtual device (%s)\n", euvc->vdev.name);
 
-    if (uvc->sub_thr_id)
-        kthread_stop(uvc->sub_thr_id);
-    mutex_destroy(&uvc->uvc_mutex);
-    video_unregister_device(&uvc->vdev);
-    v4l2_device_unregister(&uvc->v4l2_dev);
+    if (euvc->sub_thr_id)
+        kthread_stop(euvc->sub_thr_id);
+    mutex_destroy(&euvc->euvc_mutex);
+    video_unregister_device(&euvc->vdev);
+    v4l2_device_unregister(&euvc->v4l2_dev);
 
-    kfree(uvc);
-    pr_info("uvc: Device destroyed successfully\n");
+    kfree(euvc);
+    pr_info("euvc: Device destroyed successfully\n");
 }

@@ -1,8 +1,8 @@
-#ifndef UVC_DEVICE_H
-#define UVC_DEVICE_H
+#ifndef EUVC_DEVICE_H
+#define EUVC_DEVICE_H
 
 /**
- * @file uvc_device.h
+ * @file device.h
  * @brief Header file defining UVC device structures and function prototypes.
  * This file provides declarations for UVC (USB Video Class) device management, including
  * device structures, buffer handling, and related utility functions.
@@ -16,28 +16,28 @@
 #include <media/videobuf2-core.h>
 #include <media/videobuf2-v4l2.h>
 
-#include "uvc.h"
+#include "euvc.h"
 
 /**
  * @def PIXFMTS_MAX
  * @brief Maximum number of supported pixel formats.
- * Defines the maximum size of the out_fmts array in the uvc_device structure.
+ * Defines the maximum size of the out_fmts array in the euvc_device structure.
  */
 #define PIXFMTS_MAX 4
 
 /**
  * @def FB_NAME_MAXLENGTH
  * @brief Maximum length of the frame buffer name.
- * Defines the maximum length of names stored in the uvc_device_format structure.
+ * Defines the maximum length of names stored in the euvc_device_format structure.
  */
 #define FB_NAME_MAXLENGTH 16
 
 /**
- * @def UVC_EVENT_DISCONNECT
+ * @def EUVC_EVENT_DISCONNECT
  * @brief Custom V4L2 event code for device disconnection.
  * Offset from V4L2_EVENT_PRIVATE_START to indicate a device disconnect event.
  */
-#define UVC_EVENT_DISCONNECT (V4L2_EVENT_PRIVATE_START + 0)
+#define EUVC_EVENT_DISCONNECT (V4L2_EVENT_PRIVATE_START + 0)
 
 /**
  * @brief Conditional compilation for older kernel versions.
@@ -50,10 +50,10 @@
 #endif
 
 /**
- * @struct uvc_in_buffer
+ * @struct euvc_in_buffer
  * @brief Structure representing an input buffer for UVC device.
  */
-struct uvc_in_buffer {
+struct euvc_in_buffer {
     void *data;       /**< Pointer to the buffer data. */
     size_t filled;    /**< Number of bytes filled in the buffer. */
     size_t xbar;      /**< X-axis barrier or offset (specific use case). */
@@ -62,57 +62,57 @@ struct uvc_in_buffer {
 };
 
 /**
- * @struct uvc_out_buffer
+ * @struct euvc_out_buffer
  * @brief Structure representing an output buffer for UVC device.
  */
-struct uvc_out_buffer {
+struct euvc_out_buffer {
     struct vb2_v4l2_buffer vb; /**< V4L2 video buffer structure. */
     struct list_head list;     /**< List head for buffer queue management. */
     size_t filled;             /**< Number of bytes filled in the buffer. */
 };
 
 /**
- * @struct uvc_out_queue
+ * @struct euvc_out_queue
  * @brief Structure managing the output buffer queue.
  */
-struct uvc_out_queue {
+struct euvc_out_queue {
     struct list_head active; /**< List of active output buffers. */
     int frame;               /**< Current frame index in the queue. */
 };
 
 /**
- * @struct uvc_device_format
+ * @struct euvc_device_format
  * @brief Structure defining a supported video format.
  */
-struct uvc_device_format {
+struct euvc_device_format {
     char *name;     /**< Name of the format (e.g., "GREY" or "RGB"). */
     int fourcc;     /**< FourCC code identifying the pixel format. */
     int bit_depth;  /**< Bit depth of the format (e.g., 8 or 24). */
 };
 
 /**
- * @struct uvc_device
+ * @struct euvc_device
  * @brief Main structure representing a UVC device.
  * Contains device configuration, buffers, and synchronization mechanisms.
  */
-struct uvc_device {
+struct euvc_device {
     dev_t dev_number;           /**< Device number assigned to the UVC device. */
     struct v4l2_device v4l2_dev;/**< V4L2 device structure for video operations. */
     struct video_device vdev;   /**< Video device structure for V4L2 framework. */
 
     struct vb2_queue vb_out_vidq;/**< Video buffer queue for output. */
-    struct uvc_out_queue uvc_out_vidq; /**< Output buffer queue management. */
+    struct euvc_out_queue euvc_out_vidq; /**< Output buffer queue management. */
     spinlock_t out_q_slock;     /**< Spinlock for synchronizing output queue access. */
     struct v4l2_fract output_fps;/**< Output frame rate (numerator/denominator). */
 
-    struct mutex uvc_mutex;     /**< Mutex for thread-safe device operations. */
+    struct mutex euvc_mutex;     /**< Mutex for thread-safe device operations. */
 
     struct task_struct *sub_thr_id; /**< Pointer to the submitter thread. */
 
     size_t nr_fmts;             /**< Number of supported formats in out_fmts. */
-    struct uvc_device_format out_fmts[PIXFMTS_MAX]; /**< Array of supported formats. */
+    struct euvc_device_format out_fmts[PIXFMTS_MAX]; /**< Array of supported formats. */
 
-    struct uvc_device_spec fb_spec; /**< Device specification (frame buffer settings). */
+    struct euvc_device_spec fb_spec; /**< Device specification (frame buffer settings). */
     struct v4l2_pix_format output_format; /**< Current output pixel format. */
 
     struct v4l2_event disconnect_event; /**< Event for device disconnection. */
@@ -121,24 +121,24 @@ struct uvc_device {
 /**
  * @brief Creates a new UVC device instance.
  * @param[in] idx Index of the device to create.
- * @param[in] dev_spec Pointer to a uvc_device_spec structure with device configuration.
- * @return struct uvc_device* Pointer to the created UVC device, NULL on failure.
+ * @param[in] dev_spec Pointer to a euvc_device_spec structure with device configuration.
+ * @return struct euvc_device* Pointer to the created UVC device, NULL on failure.
  * @details Allocates and initializes a new UVC device based on the provided specification.
  * The device is registered with the V4L2 framework.
  */
-struct uvc_device *create_uvc_device(size_t idx, struct uvc_device_spec *dev_spec);
+struct euvc_device *create_euvc_device(size_t idx, struct euvc_device_spec *dev_spec);
 
 /**
  * @brief Destroys a UVC device instance.
- * @param[in] uvc Pointer to the uvc_device structure to destroy.
+ * @param[in] euvc Pointer to the euvc_device structure to destroy.
  * @return void No return value.
  * @details Unregisters and frees the resources associated with the specified UVC device.
  */
-void destroy_uvc_device(struct uvc_device *uvc);
+void destroy_euvc_device(struct euvc_device *euvc);
 
 /**
  * @brief Thread function for submitting video frames.
- * @param[in] data Pointer to the uvc_device structure for thread context.
+ * @param[in] data Pointer to the euvc_device structure for thread context.
  * @return int Returns 0 on success, negative error code on failure.
  * @details Runs as a kernel thread to manage the submission of video frames to the output queue.
  */
@@ -147,12 +147,12 @@ int submitter_thread(void *data);
 /**
  * @brief Fills a v4l2_pix_format structure based on device specification.
  * @param[out] fmt Pointer to the v4l2_pix_format structure to fill.
- * @param[in] dev_spec Pointer to a uvc_device_spec structure with format details.
+ * @param[in] dev_spec Pointer to a euvc_device_spec structure with format details.
  * @return void No return value.
  * @details Configures the pixel format structure with width, height, bytesperline, sizeimage,
  * and other parameters based on the device specification.
  */
-void fill_v4l2pixfmt(struct v4l2_pix_format *fmt, struct uvc_device_spec *dev_spec);
+void fill_v4l2pixfmt(struct v4l2_pix_format *fmt, struct euvc_device_spec *dev_spec);
 
 /**
  * @brief Sets the resolution based on a crop ratio.

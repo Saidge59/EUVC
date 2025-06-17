@@ -27,7 +27,4 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
-vcam-util
-
-*.mp4
-raw_frames_*/
+euvc-cli
