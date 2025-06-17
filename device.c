@@ -558,7 +558,7 @@ int submitter_thread(void *data)
                 pr_warn("FPS too high, using minimum timeout of 1 ms\n");
             }
         } else {
-            dev->output_fps.numerator = 1001;
+            dev->output_fps.numerator = 1000;
             dev->output_fps.denominator = 30000;
             timeout_ms = 1000 / 30;
             pr_warn("FPS not set, using default 30 fps\n");
@@ -573,7 +573,7 @@ int submitter_thread(void *data)
                     computation_time_ms, timeout_ms);
                 
             int new_fps = 1000 / computation_time_ms;
-            dev->output_fps.denominator = 1001 * new_fps;
+            dev->output_fps.denominator = 1000 * new_fps;
         } else if (timeout > computation_time_jiff) {
             if (kthread_should_stop()) {
                 pr_info("Thread interrupted, stopping\n");
@@ -653,7 +653,7 @@ struct euvc_device *create_euvc_device(size_t idx,
 
     euvc->sub_thr_id = NULL;
 
-    euvc->output_fps.numerator = 1001;
+    euvc->output_fps.numerator = 1000;
     euvc->output_fps.denominator = 30000;
 
     euvc->disconnect_event.type = EUVC_EVENT_DISCONNECT;

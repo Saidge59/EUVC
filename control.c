@@ -124,8 +124,8 @@ static int control_iocontrol_modify_input_setting(struct euvc_device_spec *dev_s
     }
 
     if (dev_spec->fps > 0) {
-        euvc->output_fps.numerator = 1001;
-        euvc->output_fps.denominator = 1001 * dev_spec->fps;
+        euvc->output_fps.numerator = 1000;
+        euvc->output_fps.denominator = 1000 * dev_spec->fps;
     }
     if (dev_spec->exposure >= 0) euvc->fb_spec.exposure = dev_spec->exposure;
     if (dev_spec->gain >= 0) euvc->fb_spec.gain = dev_spec->gain;

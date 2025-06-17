@@ -13,8 +13,9 @@
 #include "euvc.h"
 
 #define PATH_MAX 256
-#define VIDEOBUF2_MODULES "sudo modprobe -a videobuf2_vmalloc videobuf2_v4l2"
-#define EUVC_MODULE "sudo insmod euvc.ko"
+#define INIT_VIDEOBUF2_MODULES "sudo modprobe -a videobuf2_vmalloc videobuf2_v4l2"
+#define INIT_EUVC_MODULE "sudo insmod euvc.ko"
+#define DEINIT_EUVC_MODULE "sudo rmmod euvc.ko"
 
 static const char *short_options = "hiDcm:r:ld:f:e:g:R:cs:b:fd:L:C:";
 
@@ -303,12 +304,12 @@ void init_modules()
 {
     int result;
     printf("Initializing modules...\n");
-    result = system(VIDEOBUF2_MODULES);
+    result = system(INIT_VIDEOBUF2_MODULES);
     if (result != 0) {
         fprintf(stderr, "Failed to load videobuf2 modules. Error code: %d\n", result);
         return;
     }
-    result = system(EUVC_MODULE);
+    result = system(INIT_EUVC_MODULE);
     if (result != 0) {
         fprintf(stderr, "Failed to load euvc.ko. Error code: %d\n", result);
         return;
@@ -318,20 +319,12 @@ void init_modules()
 
 void deinit_modules() {
     int result;
-    printf("Deinitializing modules...\n");
-    result = system("sudo rmmod euvc.ko");
+    printf("Deinitializing module...\n");
+    result = system(DEINIT_EUVC_MODULE);
     if (result != 0 && result != 256) {
         fprintf(stderr, "Failed to unload euvc.ko. Error code: %d\n", result);
     }
-    result = system("sudo rmmod videobuf2_v4l2");
-    if (result != 0 && result != 256) {
-        fprintf(stderr, "Failed to unload videobuf2_v4l2. Error code: %d\n", result);
-    }
-    result = system("sudo rmmod videobuf2_vmalloc");
-    if (result != 0 && result != 256) {
-        fprintf(stderr, "Failed to unload videobuf2_vmalloc. Error code: %d\n", result);
-    }
-    printf("Modules deinitialized successfully.\n");
+    printf("Module deinitialized successfully.\n");
 }
 
 int main(int argc, char *argv[])
