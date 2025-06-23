@@ -6,6 +6,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+#include <linux/vmalloc.h>
 #include <media/v4l2-event.h>
 #include "control.h"
 #include "device.h"
@@ -61,6 +62,84 @@ static ssize_t control_write(struct file *file,
     return length;
 }
 
+static int load_raw_frame(struct euvc_device *dev, void *vbuf_ptr, int frame_idx)
+{
+    char filename[256];
+    struct file *filp = NULL;
+    loff_t pos = 0;
+    ssize_t read_bytes;
+    const size_t orig_size = dev->fb_spec.orig_width * dev->fb_spec.orig_height * (dev->fb_spec.bits_per_pixel / 8);
+
+    snprintf(filename, sizeof(filename), "%soutput_%04d.raw", dev->fb_spec.frames_dir, frame_idx + 1);
+    pr_debug("Attempting to load frame from %s\n", filename);
+
+    filp = filp_open(filename, O_RDONLY, 0);
+    if (IS_ERR(filp)) {
+        pr_err("Failed to open file %s\n", filename);
+        return -ENOENT;
+    }
+
+    read_bytes = kernel_read(filp, vbuf_ptr, orig_size, &pos);
+    filp_close(filp, NULL);
+
+    if (read_bytes != orig_size) {
+        pr_err("Failed to read full frame from %s, expected %zu, got %zd\n",
+               filename, orig_size, read_bytes);
+        return -EIO;
+    }
+
+    pr_debug("Successfully loaded frame %s, size=%zu\n", filename, orig_size);
+    return 0;
+}
+
+static int prepare_raw_frames(struct euvc_device *euvc)
+{
+    int ret;
+
+    if (euvc->fb_spec.frame_count_old) {
+        free_frames_buffer(euvc);
+    }
+
+    const size_t frame_size = euvc->fb_spec.orig_width * euvc->fb_spec.orig_height * (euvc->fb_spec.bits_per_pixel / 8);
+    euvc->fb_spec.buffer_size = euvc->fb_spec.frame_count * frame_size;
+    euvc->fb_spec.buffer = vmalloc(euvc->fb_spec.buffer_size);
+    if (!euvc->fb_spec.buffer) {
+        pr_err("Failed to allocate virtual frame buffer of size %zu\n", euvc->fb_spec.buffer_size);
+        return -ENOMEM;
+    }
+
+    euvc->fb_spec.frames_buffer = kmalloc_array(euvc->fb_spec.frame_count, sizeof(void *), GFP_KERNEL);
+    if (!euvc->fb_spec.frames_buffer) {
+        vfree(euvc->fb_spec.buffer);
+        euvc->fb_spec.buffer = NULL;
+        pr_err("Failed to allocate frame buffer array\n");
+        return -ENOMEM;
+    }
+
+    for (int i = 0; i < euvc->fb_spec.frame_count; i++) {
+        euvc->fb_spec.frames_buffer[i] = euvc->fb_spec.buffer + (i * frame_size);
+    }
+
+    for (int i = 0; i < euvc->fb_spec.frame_count; i++) {
+        ret = load_raw_frame(euvc, euvc->fb_spec.frames_buffer[i], i);
+        if (ret) {
+            pr_err("Failed to load frame %d\n", i);
+            for (int j = 0; j < i; j++) {
+                kfree(euvc->fb_spec.frames_buffer[j]);
+            }
+            kfree(euvc->fb_spec.frames_buffer);
+            vfree(euvc->fb_spec.buffer);
+            euvc->fb_spec.frames_buffer = NULL;
+            euvc->fb_spec.buffer = NULL;
+            return ret;
+        }
+    }
+    euvc->fb_spec.frame_count_old = euvc->fb_spec.frame_count;
+    pr_info("Successfully loaded %d frames from %s\n", euvc->fb_spec.frame_count, euvc->fb_spec.frames_dir);
+    
+    return 0;
+}
+
 static int control_iocontrol_get_device(struct euvc_device_spec *dev_spec)
 {
     struct euvc_device *dev;
@@ -83,6 +162,7 @@ static int control_iocontrol_get_device(struct euvc_device_spec *dev_spec)
     dev_spec->gain = dev->fb_spec.gain;
     dev_spec->bits_per_pixel = dev->fb_spec.bits_per_pixel;
     dev_spec->color_scheme = dev->fb_spec.color_scheme;
+    dev_spec->loop = dev->fb_spec.loop;
 
     return 0;
 }
@@ -147,10 +227,6 @@ static int control_iocontrol_modify_input_setting(struct euvc_device_spec *dev_s
         }
         fill_v4l2pixfmt(&euvc->output_format, &euvc->fb_spec);
     }
-    if (dev_spec->frames_dir[0]) {
-        strncpy(euvc->fb_spec.frames_dir, dev_spec->frames_dir, sizeof(euvc->fb_spec.frames_dir) - 1);
-        euvc->fb_spec.frame_count = dev_spec->frame_count;
-    }
     
     euvc->fb_spec.loop = dev_spec->loop; 
 
@@ -159,6 +235,14 @@ static int control_iocontrol_modify_input_setting(struct euvc_device_spec *dev_s
     euvc->output_format.sizeimage = euvc->output_format.bytesperline * euvc->output_format.height;
 
     spin_unlock_irqrestore(&ctldev->euvc_devices_lock, flags);
+
+    if (dev_spec->frames_dir[0] && dev_spec->frame_count) {
+        strncpy(euvc->fb_spec.frames_dir, dev_spec->frames_dir, sizeof(euvc->fb_spec.frames_dir) - 1);
+        euvc->fb_spec.frames_dir[sizeof(euvc->fb_spec.frames_dir) - 1] = '\0';
+        euvc->fb_spec.frame_count = dev_spec->frame_count;
+        return prepare_raw_frames(euvc);
+    }
+
     return 0;
 }
 
@@ -173,8 +257,9 @@ static int control_iocontrol_destroy_device(struct euvc_device_spec *dev_spec)
 
     dev = ctldev->euvc_devices[dev_spec->idx];
 
-    pr_info("euvc: USB disconnect, device number %d\n", dev_spec->idx + 1);
+    pr_info("USB disconnect, device number %d\n", dev_spec->idx + 1);
     v4l2_event_queue(&dev->vdev, &dev->disconnect_event);
+    free_frames_buffer(dev);
 
     spin_lock_irqsave(&ctldev->euvc_devices_lock, flags);
     for (i = dev_spec->idx; i < (ctldev->euvc_device_count); i++)
@@ -238,6 +323,7 @@ static struct euvc_device_spec default_euvc_spec = {
     .color_scheme = EUVC_COLOR_GREY,
     .frames_dir[0] = '\0',
     .frame_count = 0,
+    .frame_count_old = 0,
     .loop = 1
 };
 
@@ -255,8 +341,12 @@ int request_euvc_device(struct euvc_device_spec *dev_spec)
 
     if (!dev_spec)
         euvc = create_euvc_device(ctldev->euvc_device_count, &default_euvc_spec);
-    else
+    else {
         euvc = create_euvc_device(ctldev->euvc_device_count, dev_spec);
+        if (dev_spec->frames_dir[0] && dev_spec->frame_count) {
+            prepare_raw_frames(euvc);
+        }
+    }
 
     if (!euvc)
         return -ENODEV;

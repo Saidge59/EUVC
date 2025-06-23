@@ -80,6 +80,7 @@ struct euvc_device_spec device_template = {
     .loop = 1,
     .frame_idx = 0,
     .frame_count = 0,
+    .frame_count_old = 0,
     .cropratio = {.numerator = 1, .denominator = 1}
 };
 
@@ -162,7 +163,6 @@ int load_frames_from_dir(const char *dir_path_raw, struct euvc_device_spec *dev_
     strncpy(dev_spec->frames_dir, dir_path, sizeof(dev_spec->frames_dir) - 1);
     dev_spec->frames_dir[sizeof(dev_spec->frames_dir) - 1] = '\0';
 
-    printf("Loaded %d frames from %s\n", count, dir_path);
     return 0;
 }
 
@@ -185,15 +185,14 @@ int create_device(struct euvc_device_spec *dev)
     if (dev->cropratio.denominator == UNSET_VALUE) dev->cropratio.denominator = device_template.cropratio.denominator;
     if (dev->cropratio.numerator == UNSET_VALUE) dev->cropratio.numerator = device_template.cropratio.numerator;
     if (dev->loop == UNSET_VALUE) dev->loop = device_template.loop;
-
-    printf("Creating device: width=%d, height=%d, bpp=%d, color=%d\n",
-           dev->width, dev->height, dev->bits_per_pixel, dev->color_scheme);
+    if (dev->frame_count == UNSET_VALUE) dev->frame_count = device_template.frame_count;
+    else { printf("Waiting for load %d frames to the RAM from %s\n", dev->frame_count, dev->frames_dir); }
 
     int res = ioctl(fd, EUVC_IOCTL_CREATE_DEVICE, dev);
     if (res) {
         fprintf(stderr, "Failed to create a new device. Error code: %d\n", res);
-    } else if (dev->frames_dir[0]) {
-        printf("Loading frames from %s\n", dev->frames_dir);
+    } else {
+        printf("Successfully created the device.\n");
     }
 
     close(fd);
@@ -212,6 +211,8 @@ int remove_device(struct euvc_device_spec *dev)
     if (res) {
         fprintf(stderr, "Failed to remove the device on index %d.\n",
                 dev->idx + 1);
+    } else {
+        printf("Successfully destroyed the device.\n");
     }
 
     close(fd);
@@ -253,9 +254,14 @@ int modify_device(struct euvc_device_spec *dev)
                 dev->cropratio.denominator, dev->idx + 1);
     }
 
+    if (dev->frame_count == UNSET_VALUE) dev->frame_count = orig_dev.frame_count;
+    else { printf("Waiting for load %d frames to the RAM from %s\n", dev->frame_count, dev->frames_dir); }
+
     int res = ioctl(fd, EUVC_IOCTL_MODIFY_SETTING, dev);
     if (res) {
         fprintf(stderr, "Failed to modify the device.\n");
+    } else {
+        printf("Successfully modified the device.\n");
     }
 
     close(fd);
@@ -331,6 +337,7 @@ int main(int argc, char *argv[])
         .cropratio.denominator = UNSET_VALUE,
         .loop = UNSET_VALUE,
         .frame_idx = UNSET_VALUE,
+        .frame_count = UNSET_VALUE,
     };
     strncpy(dev.frames_dir, "", sizeof(dev.frames_dir) - 1);
 

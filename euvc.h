@@ -58,8 +58,8 @@
  * @brief Structure representing a crop ratio with numerator and denominator.
  */
 struct crop_ratio {
-    unsigned int numerator;   /**< Numerator of the crop ratio. */
-    unsigned int denominator; /**< Denominator of the crop ratio. */
+    unsigned int numerator;   /* Numerator of the crop ratio. */
+    unsigned int denominator; /* Denominator of the crop ratio. */
 };
 
 /**
@@ -68,26 +68,30 @@ struct crop_ratio {
  * This structure is used to pass configuration and status information between user space and kernel.
  */
 struct euvc_device_spec {
-    unsigned int idx;           /**< Index of the device (0-based). */
-    unsigned int orig_width;    /**< Original width of the frame (e.g., 800). */
-    unsigned int orig_height;   /**< Original height of the frame (e.g., 700). */
-    unsigned int width;         /**< Current width of the frame (after cropping or scaling). */
-    unsigned int height;        /**< Current height of the frame (after cropping or scaling). */
-    unsigned int fps;           /**< Frames per second (negative value indicates default). */
-    unsigned int exposure;      /**< Exposure setting (negative value indicates default). */
-    unsigned int gain;          /**< Gain setting (negative value indicates default). */
-    unsigned int bits_per_pixel;/**< Bits per pixel (negative value indicates default, e.g., 8 or 24). */
-    unsigned int frame_idx;     /**< Current frame index (used for looping). */
-    unsigned int frame_count;   /**< Total number of frames in the directory. */
-    unsigned int loop;          /**< Flag to enable/disable frame looping. */
-    char video_node[64];        /**< Path to the video device node (e.g., "/dev/video0"). */
-    struct crop_ratio cropratio;/**< Crop ratio for adjusting the frame dimensions. */
+    unsigned int idx;               /* Index of the device (0-based). */
+    unsigned int orig_width;        /* Original width of the frame (e.g., 800). */
+    unsigned int orig_height;       /* Original height of the frame (e.g., 700). */
+    unsigned int width;             /* Current width of the frame (after cropping or scaling). */
+    unsigned int height;            /* Current height of the frame (after cropping or scaling). */
+    unsigned int fps;               /* Frames per second (negative value indicates default). */
+    unsigned int exposure;          /* Exposure setting (negative value indicates default). */
+    unsigned int gain;              /* Gain setting (negative value indicates default). */
+    unsigned int bits_per_pixel;    /* Bits per pixel (negative value indicates default, e.g., 8 or 24). */
+    unsigned int frame_idx;         /* Current frame index (used for looping). */
+    unsigned int frame_count;       /* Total number of frames in the directory. */
+    unsigned int frame_count_old;   /* Previous frame count for memory management. */
+    unsigned int loop;              /* Flag to enable/disable frame looping. */
+    char video_node[64];            /* Path to the video device node (e.g., "/dev/video0"). */
+    void **frames_buffer;            /* Array of pointers to preloaded frames. */
+    void *buffer;                   /* Continuous memory block for all frames. */
+    size_t buffer_size;             /* Total size of allocated memory. */
+    struct crop_ratio cropratio;    /* Crop ratio for adjusting the frame dimensions. */
     enum { 
-        EUVC_COLOR_EMPTY = -1,   /**< Placeholder for uninitialized color scheme. */
-        EUVC_COLOR_RGB = 0,      /**< RGB color scheme. */
-        EUVC_COLOR_GREY = 1      /**< Greyscale color scheme. */
-    } color_scheme;             /**< Color scheme of the video frame. */
-    char frames_dir[256];       /**< Directory path for frame data files. */
+        EUVC_COLOR_EMPTY = -1,      /* Placeholder for uninitialized color scheme. */
+        EUVC_COLOR_RGB = 0,         /* RGB color scheme. */
+        EUVC_COLOR_GREY = 1         /* Greyscale color scheme. */
+    } color_scheme;                 /* Color scheme of the video frame. */
+    char frames_dir[256];           /* Directory path for frame data files. */
 };
 
 #endif

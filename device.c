@@ -3,6 +3,7 @@
 #include <linux/spinlock.h>
 #include <linux/time.h>
 #include <linux/version.h>
+#include <linux/vmalloc.h>
 #include <media/v4l2-image-sizes.h>
 #include <media/videobuf2-core.h>
 #include <media/videobuf2-vmalloc.h>
@@ -368,36 +369,6 @@ void fill_v4l2pixfmt(struct v4l2_pix_format *fmt, struct euvc_device_spec *dev_s
     fmt->sizeimage = fmt->bytesperline * fmt->height;
 }
 
-static int load_raw_frame(struct euvc_device *dev, void *vbuf_ptr, int frame_idx)
-{
-    char filename[256];
-    struct file *filp = NULL;
-    loff_t pos = 0;
-    ssize_t read_bytes;
-    const size_t orig_size = dev->fb_spec.orig_width * dev->fb_spec.orig_height * (dev->fb_spec.bits_per_pixel / 8);
-
-    snprintf(filename, sizeof(filename), "%soutput_%04d.raw", dev->fb_spec.frames_dir, frame_idx + 1);
-    pr_debug("Attempting to load frame from %s\n", filename);
-
-    filp = filp_open(filename, O_RDONLY, 0);
-    if (IS_ERR(filp)) {
-        pr_err("Failed to open file %s\n", filename);
-        return -ENOENT;
-    }
-
-    read_bytes = kernel_read(filp, vbuf_ptr, orig_size, &pos);
-    filp_close(filp, NULL);
-
-    if (read_bytes != orig_size) {
-        pr_err("Failed to read full frame from %s, expected %zu, got %zd\n",
-               filename, orig_size, read_bytes);
-        return -EIO;
-    }
-
-    pr_debug("Successfully loaded frame %s, size=%zu\n", filename, orig_size);
-    return 0;
-}
-
 static void fill_with_color(struct euvc_device *dev, void *vbuf_ptr)
 {
     uint8_t *data = (uint8_t *)vbuf_ptr;
@@ -433,93 +404,80 @@ static void submit_noinput_buffer(struct euvc_out_buffer *buf, struct euvc_devic
         return;
     }
 
-    if (dev->fb_spec.frames_dir[0]) {
-        uint8_t *temp_data = kmalloc(dev->fb_spec.orig_width * dev->fb_spec.orig_height * (dev->fb_spec.bits_per_pixel / 8), GFP_KERNEL);
-        if (!temp_data) {
-            pr_err("Failed to allocate temp buffer\n");
-            fill_with_color(dev, vbuf_ptr);
-            goto done;
+    if (dev->fb_spec.frames_dir[0] && dev->fb_spec.frames_buffer && dev->fb_spec.frames_buffer[dev->fb_spec.frame_idx]) {
+        pr_debug("Loaded frame %d with fps=%d, bpp=%d\n",
+                dev->fb_spec.frame_idx + 1,
+                dev->output_fps.denominator / dev->output_fps.numerator,
+                dev->fb_spec.bits_per_pixel);
+
+        int orig_width = dev->fb_spec.orig_width;
+        int orig_height = dev->fb_spec.orig_height;
+        int target_width = dev->output_format.width;
+        int target_height = dev->output_format.height;
+        int bpp = dev->fb_spec.bits_per_pixel / 8;
+        size_t bytesperline = dev->output_format.bytesperline;
+        size_t sizeimage = dev->output_format.sizeimage;
+
+        int start_x = (orig_width - target_width) / 2;
+        int start_y = (orig_height - target_height) / 2;
+        if (start_x < 0) start_x = 0;
+        if (start_y < 0) start_y = 0;
+
+        uint8_t *data = (uint8_t *)vbuf_ptr;
+        uint8_t *src_data = (uint8_t *)dev->fb_spec.frames_buffer[dev->fb_spec.frame_idx];
+
+        int max_y = min(target_height, orig_height - start_y);
+
+        for (int y = 0; y < max_y; y++) {
+            size_t src_offset = (start_y + y) * orig_width * bpp + start_x * bpp;
+            size_t dst_offset = y * bytesperline;
+            size_t copy_size = target_width * bpp;
+            size_t dst_line_end = dst_offset + copy_size;
+
+            pr_debug("Copying row y=%d, src_offset=%zu, dst_offset=%zu, copy_size=%zu, dst_line_end=%zu\n",
+                     y, src_offset, dst_offset, copy_size, dst_line_end);
+
+            if (dst_line_end > sizeimage) {
+                pr_err("Buffer overflow detected at y=%d, dst_line_end=%zu, sizeimage=%zu\n",
+                       y, dst_line_end, sizeimage);
+                break;
+            }
+            if (src_offset + copy_size > orig_width * orig_height * bpp) {
+                pr_err("Source overflow at y=%d, src_offset=%zu, copy_size=%zu\n",
+                       y, src_offset, copy_size);
+                break;
+            }
+
+            memcpy(data + dst_offset, src_data + src_offset, copy_size);
+
+            if (copy_size < bytesperline) {
+                memset(data + dst_offset + copy_size, 0, bytesperline - copy_size);
+                pr_debug("Cleared padding at y=%d, offset=%zu, size=%zu\n",
+                         y, dst_offset + copy_size, bytesperline - copy_size);
+            }
         }
 
-        if (load_raw_frame(dev, temp_data, dev->fb_spec.frame_idx) == 0) {
-            pr_debug("Loaded frame %d with fps=%d, bpp=%d\n",
-                    dev->fb_spec.frame_idx + 1, dev->output_fps.denominator / dev->output_fps.numerator,
-                    dev->fb_spec.bits_per_pixel);
+        size_t size = target_width * target_height * bpp;
+        int exp_factor = dev->fb_spec.exposure - 100;
+        int gain_factor = dev->fb_spec.gain - 50;
 
-            int orig_width = dev->fb_spec.orig_width;
-            int orig_height = dev->fb_spec.orig_height;
-            int target_width = dev->output_format.width;
-            int target_height = dev->output_format.height;
-            int bpp = dev->fb_spec.bits_per_pixel / 8;
-            size_t bytesperline = dev->output_format.bytesperline;
-            size_t sizeimage = dev->output_format.sizeimage;
-
-            int start_x = (orig_width - target_width) / 2;
-            int start_y = (orig_height - target_height) / 2;
-            if (start_x < 0) start_x = 0;
-            if (start_y < 0) start_y = 0;
-
-            uint8_t *data = (uint8_t *)vbuf_ptr;
-
-            int max_y = min(target_height, orig_height - start_y);
-
-            for (int y = 0; y < max_y; y++) {
-                size_t src_offset = (start_y + y) * orig_width * bpp + start_x * bpp;
-                size_t dst_offset = y * bytesperline;
-                size_t copy_size = target_width * bpp;
-                size_t dst_line_end = dst_offset + copy_size;
-
-                pr_debug("Copying row y=%d, src_offset=%zu, dst_offset=%zu, copy_size=%zu, dst_line_end=%zu\n",
-                         y, src_offset, dst_offset, copy_size, dst_line_end);
-
-                if (dst_line_end > sizeimage) {
-                    pr_err("Buffer overflow detected at y=%d, dst_line_end=%zu, sizeimage=%zu\n",
-                           y, dst_line_end, sizeimage);
-                    break;
-                }
-                if (src_offset + copy_size > orig_width * orig_height * bpp) {
-                    pr_err("Source overflow at y=%d, src_offset=%zu, copy_size=%zu\n",
-                           y, src_offset, copy_size);
-                    break;
-                }
-
-                memcpy(data + dst_offset,
-                       temp_data + src_offset,
-                       copy_size);
-
-                if (copy_size < bytesperline) {
-                    memset(data + dst_offset + copy_size, 0, bytesperline - copy_size);
-                    pr_debug("Cleared padding at y=%d, offset=%zu, size=%zu\n",
-                             y, dst_offset + copy_size, bytesperline - copy_size);
-                }
+        for (size_t i = 0; i < size; i += bpp) {
+            for (int ch = 0; ch < bpp; ++ch) {
+                int base = (data[i + ch] * (100 + exp_factor)) / 100;
+                data[i + ch] = clamp(base + (base * gain_factor) / 100, 0, 255);
             }
-
-            size_t size = target_width * target_height * bpp;
-            int exp_factor = dev->fb_spec.exposure - 100;
-            int gain_factor = dev->fb_spec.gain - 50;
-
-            for (size_t i = 0; i < size; i += bpp) {
-                for (int ch = 0; ch < bpp; ++ch) {
-                    int base = (data[i + ch] * (100 + exp_factor)) / 100;
-                    data[i + ch] = clamp(base + (base * gain_factor) / 100, 0, 255);
-                }
-            }
-
-            if (dev->fb_spec.loop) {
-                dev->fb_spec.frame_idx = (dev->fb_spec.frame_idx + 1) % dev->fb_spec.frame_count;
-            } else if (dev->fb_spec.frame_idx < dev->fb_spec.frame_count - 1) {
-                dev->fb_spec.frame_idx++;
-            }
-        } else {
-            pr_err("Failed to load frame %d, falling back to synthetic fill\n", dev->fb_spec.frame_idx + 1);
-            fill_with_color(dev, vbuf_ptr);
         }
-        kfree(temp_data);
+
+        if (dev->fb_spec.loop) {
+            dev->fb_spec.frame_idx = (dev->fb_spec.frame_idx + 1) % dev->fb_spec.frame_count;
+        } else if (dev->fb_spec.frame_idx < dev->fb_spec.frame_count - 1) {
+            dev->fb_spec.frame_idx++;
+        }
     } else {
+        pr_err("Frame buffer not ready or invalid index %d, falling back to synthetic fill\n", dev->fb_spec.frame_idx + 1);
         fill_with_color(dev, vbuf_ptr);
     }
 
-done:
     buf->vb.vb2_buf.timestamp = ktime_get_ns();
     vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 }
@@ -642,6 +600,7 @@ struct euvc_device *create_euvc_device(size_t idx,
 
     euvc->fb_spec = *dev_spec;
     strncpy(euvc->fb_spec.frames_dir, dev_spec->frames_dir, sizeof(euvc->fb_spec.frames_dir) - 1);
+    euvc->fb_spec.frames_dir[sizeof(euvc->fb_spec.frames_dir) - 1] = '\0';
     euvc->fb_spec.frame_count = dev_spec->frame_count;
 
     euvc->fb_spec.orig_width = dev_spec->width;
@@ -674,12 +633,30 @@ euvc_alloc_failure:
     return NULL;
 }
 
+void free_frames_buffer(struct euvc_device *euvc)
+{
+    if (euvc->fb_spec.frames_buffer) {
+        kfree(euvc->fb_spec.frames_buffer);
+
+        if (euvc->fb_spec.buffer) {
+            vfree(euvc->fb_spec.buffer);
+        }
+
+        euvc->fb_spec.frames_buffer = NULL;
+        euvc->fb_spec.buffer = NULL;
+        euvc->fb_spec.buffer_size = 0;
+        euvc->fb_spec.frame_count_old = 0;
+        pr_info("The frame buffer was free\n");
+    }
+}
+
 void destroy_euvc_device(struct euvc_device *euvc)
 {
     if (!euvc) 
         return;
 
-    pr_info("euvc: Destroying virtual device (%s)\n", euvc->vdev.name);
+    pr_info("Destroying virtual device (%s)\n", euvc->vdev.name);
+    free_frames_buffer(euvc);
 
     if (euvc->sub_thr_id)
         kthread_stop(euvc->sub_thr_id);
@@ -688,5 +665,5 @@ void destroy_euvc_device(struct euvc_device *euvc)
     v4l2_device_unregister(&euvc->v4l2_dev);
 
     kfree(euvc);
-    pr_info("euvc: Device destroyed successfully\n");
+    pr_info("Device destroyed successfully\n");
 }

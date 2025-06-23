@@ -50,18 +50,6 @@
 #endif
 
 /**
- * @struct euvc_in_buffer
- * @brief Structure representing an input buffer for UVC device.
- */
-struct euvc_in_buffer {
-    void *data;       /**< Pointer to the buffer data. */
-    size_t filled;    /**< Number of bytes filled in the buffer. */
-    size_t xbar;      /**< X-axis barrier or offset (specific use case). */
-    size_t ybar;      /**< Y-axis barrier or offset (specific use case). */
-    uint32_t jiffies; /**< Timestamp in jiffies when the buffer was filled. */
-};
-
-/**
  * @struct euvc_out_buffer
  * @brief Structure representing an output buffer for UVC device.
  */
@@ -164,5 +152,15 @@ void fill_v4l2pixfmt(struct v4l2_pix_format *fmt, struct euvc_device_spec *dev_s
  * ensuring the aspect ratio is maintained.
  */
 void set_crop_resolution(__u32 *width, __u32 *height, struct crop_ratio cropratio);
+
+/**
+ * @brief Frees the memory allocated for the frames buffer.
+ * @param[in] euvc Pointer to the euvc_device structure.
+ * @return void No return value.
+ * @details Releases any memory resources associated with the frames buffer
+ * within the specified UVC device. Ensures that all dynamically allocated
+ * frame data is properly deallocated to prevent memory leaks.
+ */
+void free_frames_buffer(struct euvc_device *euvc);
 
 #endif
