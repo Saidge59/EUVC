@@ -70,7 +70,7 @@ static int load_raw_frame(struct euvc_device *dev, void *vbuf_ptr, int frame_idx
     ssize_t read_bytes;
     const size_t orig_size = dev->fb_spec.orig_width * dev->fb_spec.orig_height * (dev->fb_spec.bits_per_pixel / 8);
 
-    snprintf(filename, sizeof(filename), "%soutput_%04d.raw", dev->fb_spec.frames_dir, frame_idx + 1);
+    snprintf(filename, sizeof(filename), "%sFrame_%04d.raw", dev->fb_spec.frames_dir, frame_idx + 1);
     pr_debug("Attempting to load frame from %s\n", filename);
 
     filp = filp_open(filename, O_RDONLY, 0);
@@ -96,12 +96,25 @@ static int prepare_raw_frames(struct euvc_device *euvc)
 {
     int ret;
 
+    if (!euvc || euvc->fb_spec.frames_dir[0] == '\0' || euvc->fb_spec.frame_count <= 0) {
+        pr_err("Invalid parameters: euvc=%p, frames_dir=\"%s\", frame_count=%d\n",
+            euvc, euvc->fb_spec.frames_dir, euvc->fb_spec.frame_count);
+        return -EINVAL;
+    }
+
     if (euvc->fb_spec.frame_count_old) {
         free_frames_buffer(euvc);
     }
 
     const size_t frame_size = euvc->fb_spec.orig_width * euvc->fb_spec.orig_height * (euvc->fb_spec.bits_per_pixel / 8);
+    if (frame_size == 0) {
+        pr_err("Invalid frame size: width=%d, height=%d, bits_per_pixel=%d\n",
+               euvc->fb_spec.orig_width, euvc->fb_spec.orig_height, euvc->fb_spec.bits_per_pixel);
+        return -EINVAL;
+    }
+
     euvc->fb_spec.buffer_size = euvc->fb_spec.frame_count * frame_size;
+
     euvc->fb_spec.buffer = vmalloc(euvc->fb_spec.buffer_size);
     if (!euvc->fb_spec.buffer) {
         pr_err("Failed to allocate virtual frame buffer of size %zu\n", euvc->fb_spec.buffer_size);
@@ -123,14 +136,8 @@ static int prepare_raw_frames(struct euvc_device *euvc)
     for (int i = 0; i < euvc->fb_spec.frame_count; i++) {
         ret = load_raw_frame(euvc, euvc->fb_spec.frames_buffer[i], i);
         if (ret) {
-            pr_err("Failed to load frame %d\n", i);
-            for (int j = 0; j < i; j++) {
-                kfree(euvc->fb_spec.frames_buffer[j]);
-            }
-            kfree(euvc->fb_spec.frames_buffer);
-            vfree(euvc->fb_spec.buffer);
-            euvc->fb_spec.frames_buffer = NULL;
-            euvc->fb_spec.buffer = NULL;
+            pr_err("Failed to load frame %d\n", i+1);
+            free_frames_buffer(euvc);
             return ret;
         }
     }

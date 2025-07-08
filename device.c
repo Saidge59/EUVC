@@ -635,27 +635,32 @@ euvc_alloc_failure:
 
 void free_frames_buffer(struct euvc_device *euvc)
 {
+    if (!euvc) {
+        pr_err("free_frames_buffer called with NULL euvc\n");
+        return;
+    }
+
     if (euvc->fb_spec.frames_buffer) {
         kfree(euvc->fb_spec.frames_buffer);
-
-        if (euvc->fb_spec.buffer) {
-            vfree(euvc->fb_spec.buffer);
-        }
-
         euvc->fb_spec.frames_buffer = NULL;
-        euvc->fb_spec.buffer = NULL;
-        euvc->fb_spec.buffer_size = 0;
-        euvc->fb_spec.frame_count_old = 0;
-        pr_info("The frame buffer was free\n");
     }
+    if (euvc->fb_spec.buffer) {
+        vfree(euvc->fb_spec.buffer);
+        euvc->fb_spec.buffer = NULL;
+    }
+    euvc->fb_spec.buffer_size = 0;
+    euvc->fb_spec.frame_count_old = 0;
+    pr_info("Frame buffer freed\n");
 }
 
 void destroy_euvc_device(struct euvc_device *euvc)
 {
-    if (!euvc) 
+    if (!euvc) {
+        pr_err("destroy_euvc_device called with NULL euvc\n");
         return;
+    }
 
-    pr_info("Destroying virtual device (%s)\n", euvc->vdev.name);
+    pr_info("Destroying virtual device (%s)\n", euvc->vdev.name ? euvc->vdev.name : "unnamed");
     free_frames_buffer(euvc);
 
     if (euvc->sub_thr_id)

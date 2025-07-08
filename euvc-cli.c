@@ -124,8 +124,12 @@ int load_frames_from_dir(const char *dir_path_raw, struct euvc_device_spec *dev_
     DIR *dir;
     struct dirent *entry;
     int count = 0;
-
     char dir_path[PATH_MAX];
+
+    if (dir_path_raw[0] != '/') {
+        fprintf(stderr, "Error: Path must be absolute (starts with '/'): '%s'\n", dir_path_raw);
+        return -1;
+    }
 
     if (stat(dir_path_raw, &st) != 0) {
         fprintf(stderr, "Directory '%s' does not exist: %s\n", dir_path_raw, strerror(errno));
@@ -137,9 +141,17 @@ int load_frames_from_dir(const char *dir_path_raw, struct euvc_device_spec *dev_
         return -1;
     }
 
-    snprintf(dir_path, sizeof(dir_path), "%s%s",
-             dir_path_raw,
-             (dir_path_raw[strlen(dir_path_raw) - 1] == '/') ? "" : "/");
+    size_t len = strlen(dir_path_raw);
+    if (len + 2 > sizeof(dir_path)) {
+        fprintf(stderr, "Directory path too long.\n");
+        return -1;
+    }
+
+    strcpy(dir_path, dir_path_raw);
+    if (dir_path[len - 1] != '/') {
+        dir_path[len] = '/';
+        dir_path[len + 1] = '\0';
+    }
 
     if (!(dir = opendir(dir_path))) {
         fprintf(stderr, "Failed to open directory '%s': %s\n", dir_path, strerror(errno));
@@ -147,15 +159,16 @@ int load_frames_from_dir(const char *dir_path_raw, struct euvc_device_spec *dev_
     }
 
     while ((entry = readdir(dir)) != NULL) {
-        if (strncmp(entry->d_name, "output_", 7) == 0 &&
-            strstr(entry->d_name, ".raw") != NULL) {
+        size_t name_len = strlen(entry->d_name);
+        if (strncmp(entry->d_name, "Frame_", 6) == 0 &&
+            name_len > 4 && strcmp(entry->d_name + name_len - 4, ".raw") == 0) {
             count++;
         }
     }
     closedir(dir);
 
     if (count == 0) {
-        fprintf(stderr, "No output_*.raw files found in %s\n", dir_path);
+        fprintf(stderr, "No Frame_*.raw files found in %s\n", dir_path);
         return -1;
     }
 

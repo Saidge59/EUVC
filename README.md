@@ -6,15 +6,16 @@ This Linux module implements a simplified virtual V4L2 compatible camera device 
 
 The following packages must be installed before building `euvc`.
 
-In order to compile the kernel driver successfully, package versions of the currently used kernel, kernel-devel, and kernel-headers need to be matched:
-```shell
-sudo apt install linux-headers-$(uname -r)
-```
-
-Since `euvc` is built with [V4L2](https://en.wikipedia.org/wiki/Video4Linux) (Video4Linux, second version), `v4l-utils` is necessary for retrieving more information and function validation:
-```shell
-sudo apt install v4l-utils
-```
+### Required Packages
+- **Kernel headers and development tools**:
+  - `linux-headers-$(uname -r)`: Must match the currently running kernel version.
+  - `gcc-12`: Compiler required for building the module and utility (version 12 or higher).
+  - `make`: Build tool for compiling the source code.
+  - `libc6-dev`: C library development files.
+- **V4L2 dependencies**:
+  - `v4l-utils`: Tools for V4L2 compliance testing and validation.
+- **Other utilities**:
+  - `vlc`: For viewing the virtual camera stream (optional, for testing).
 
 ## Build and Run
 
@@ -185,16 +186,11 @@ vlc v4l2:///dev/video0
 ```
 This command opens the /dev/video0 device, which is associated with the virtual camera driver, and displays the incoming frames in real time.
 
-To install VLC on Ubuntu, run:
-```shell
-sudo apt install vlc
-```
-
 ### Notes
 - Parameters are persistent after driver load and can be modified incrementally. For example, after setting `-r 800x700`, subsequent `-m 1 -f 30` will retain the resolution.
 - Always run `euvc-cli` with `sudo` due to required root privileges.
 - Use `v4l2-ctl` or other V4L2 tools to test the virtual camera with applications like VLC.
-- The frames must have names (output_0001.raw, output_0002.raw, ...).
+- The frames must have names (Frame_001.raw, Frame_0002.raw, ...).
 
 ## Cleanup
 To unload the module and clean up:
